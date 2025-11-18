@@ -1,6 +1,6 @@
-#ifndef VECTOR_H
-#define VECTOR_H
-#include <stdexcept>
+#pragma once
+#include <iostream>
+using namespace std;
 template <typename T>
 class vector
 {
@@ -65,7 +65,7 @@ public:
     {
         if (index >= size || index < 0)
         {
-            throw std::out_of_range("Index out of range");
+            throw out_of_range("Index out of range");
         }
         return arr[index];
     }
@@ -117,5 +117,3 @@ public:
         delete[] arr;
     }
 };
-
-#endif
