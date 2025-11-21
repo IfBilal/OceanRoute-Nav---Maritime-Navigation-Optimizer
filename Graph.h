@@ -101,7 +101,7 @@ struct Graph
             {
                 current->data.displayRoute();
                 cout << endl
-                     << "Destination port name : " << ports[current->data.destinationIndex] << endl;
+                     << "Destination port name : " << ports[current->data.destinationIndex]->name << endl;
                 current = current->next;
             }
         }
