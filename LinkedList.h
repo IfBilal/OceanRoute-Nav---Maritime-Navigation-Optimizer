@@ -10,12 +10,10 @@ struct Node
     Node(T data) : data(data), next(nullptr) {}
 };
 template <typename T>
-class LinkedList
+struct LinkedList
 {
-private:
     Node<T> *head;
 
-public:
     LinkedList()
     {
         head = nullptr;

@@ -4,6 +4,7 @@
 #include "Route.h"
 #include "Vector.h"
 #include "DateTime.h"
+#include "LinkedList.h"
 #include <fstream>
 using namespace std;
 struct Graph
@@ -88,6 +89,21 @@ struct Graph
             double portCharges = stod(line.substr(line.find(" ") + 1));
             Port *port = new Port(name, portCharges);
             ports.push_back(port);
+        }
+    }
+    void displayGraph()
+    {
+        for (int i = 0; i < ports.getSize(); i++)
+        {
+            cout << "Port: " << ports[i]->name << ", Charges: " << ports[i]->portCharges << endl;
+            Node<Route> *current = ports[i]->routes.head;
+            while (current != nullptr)
+            {
+                current->data.displayRoute();
+                cout << endl
+                     << "Destination port name : " << ports[current->data.destinationIndex] << endl;
+                current = current->next;
+            }
         }
     }
     Graph()
