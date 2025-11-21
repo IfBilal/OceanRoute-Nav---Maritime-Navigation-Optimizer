@@ -9,7 +9,7 @@
 using namespace std;
 struct Graph
 {
-    vector<Port *> ports;
+    ::vector<Port *> ports;
 
     bool isNextDay(int depHour, int depMinute, int arrHour, int arrMinute)
     {
@@ -91,21 +91,21 @@ struct Graph
             ports.push_back(port);
         }
     }
-    void displayGraph()
-    {
-        for (int i = 0; i < ports.getSize(); i++)
-        {
-            cout << "Port: " << ports[i]->name << ", Charges: " << ports[i]->portCharges << endl;
-            Node<Route> *current = ports[i]->routes.head;
-            while (current != nullptr)
-            {
-                current->data.displayRoute();
-                cout << endl
-                     << "Destination port name : " << ports[current->data.destinationIndex]->name << endl;
-                current = current->next;
-            }
-        }
-    }
+    // void displayGraph()
+    // {
+    //     for (int i = 0; i < ports.getSize(); i++)
+    //     {
+    //         Node<Route> *current = ports[i]->routes.head;
+    //         cout<<"\n===============================================================\n";
+    //         cout << "Port: " << ports[i]->name << ", Charges: " << ports[i]->portCharges << endl;
+    //         while (current != nullptr)
+    //         {
+    //             current->data.displayRoute();
+    //             cout<< "Destination port name : " << ports[current->data.destinationIndex]->name << endl<<endl;
+    //             current = current->next;
+    //         }
+    //     }
+    // }
     Graph()
     {
         createPorts();
