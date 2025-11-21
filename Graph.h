@@ -70,7 +70,7 @@ struct Graph
             destinationIndex = findPortIndex(destinationPortName);
             if (sourceIndex != -1 && destinationIndex != -1)
             {
-                Route route(destinationIndex, departureTime, arrivalTime, voyageCost, company);
+                Route route(sourcePortName, destinationPortName, destinationIndex, departureTime, arrivalTime, voyageCost, company);
                 ports[sourceIndex]->routes.insertAtHead(route);
             }
             else
