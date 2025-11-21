@@ -12,7 +12,6 @@ struct Route
     DateTime arrivalTime;
     double voyageCost;
     string company;
-    Route *next;
 
     Route(int destinationIndex, DateTime departureTime, DateTime arrivalTime, double voyageCost, string company)
     {
@@ -21,6 +20,5 @@ struct Route
         this->arrivalTime = arrivalTime;
         this->voyageCost = voyageCost;
         this->company = company;
-        next = nullptr;
     }
 };
