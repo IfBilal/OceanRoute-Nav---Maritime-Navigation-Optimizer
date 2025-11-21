@@ -7,16 +7,16 @@ using namespace std;
 
 struct Route
 {
-    Port *destinationPort;
+    int destinationIndex;
     DateTime departureTime;
     DateTime arrivalTime;
     double voyageCost;
     string company;
     Route *next;
 
-    Route(Port *destinationPort, DateTime departureTime, DateTime arrivalTime, double voyageCost, string company)
+    Route(int destinationIndex, DateTime departureTime, DateTime arrivalTime, double voyageCost, string company)
     {
-        this->destinationPort = destinationPort;
+        this->destinationIndex = destinationIndex;
         this->departureTime = departureTime;
         this->arrivalTime = arrivalTime;
         this->voyageCost = voyageCost;
