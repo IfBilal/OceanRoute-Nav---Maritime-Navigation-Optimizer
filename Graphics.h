@@ -4,6 +4,20 @@
 #include "Vector.h"     
 #include "LinkedList.h" 
 
+// Animation State for a single route being drawn
+struct RouteAnimation {
+    int sourceIdx;
+    int destIdx;
+    float progress; // 0.0 to 1.0
+    float speed;    // Speed of drawing
+    sf::Color color;
+    
+    // Routes from file data
+    string company;
+    double cost;
+    DateTime time;
+};
+
 class Graphics {
 private:
     sf::RenderWindow& window; 
@@ -11,8 +25,10 @@ private:
     sf::Sprite mapSprite;
     sf::Font font;
 
-    // Global namespace vector
     ::vector<sf::Vector2f> portScreenPositions; 
+    
+    // Active animations list
+    ::vector<RouteAnimation> activeAnimations;
 
     // Internal Helper Functions
     sf::Vector2f getRelativeCoordinates(std::string cityName);
@@ -20,17 +36,21 @@ private:
     float distToSegment(sf::Vector2f p, sf::Vector2f v, sf::Vector2f w);
 
 public:
-    // Constructor
     Graphics(sf::RenderWindow& win, Graph& graph);
+
+    // Call this every frame to update animation progress
+    void update(float deltaTime);
 
     // Main Draw Loop
     void drawWorld(Graph& graph, int selectedPortIndex, bool showAllRoutes);
 
-    // Future Features
-    void drawPath(LinkedList<Route>& path);
+    // Trigger an animation (e.g., when clicking a port)
+    void startRouteAnimation(int startIdx, int endIdx, Route& data);
     
-    // The function causing you trouble - declared here
-    void drawPortQueue(sf::Vector2f pos, int count); 
-    
+    // Clears old animations
+    void clearAnimations();
+
     int handleMouseClick(int mouseX, int mouseY);
+    void drawPortQueue(sf::Vector2f pos, int count);
+    void drawPath(LinkedList<Route>& path);
 };
