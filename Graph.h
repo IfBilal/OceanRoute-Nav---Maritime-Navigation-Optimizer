@@ -63,9 +63,11 @@ struct Graph
             int arrivalMinute = stoi(arrivalTimeStr);
 
             bool nextDay = isNextDay(departureHour, departureMinute, arrivalHour, arrivalMinute);
+            bool nextMonth = ((nextDay) ? day + 1 : day) > 31;
+            bool nextYear = ((nextMonth) ? month + 1 : month) > 12;
 
             DateTime departureTime(year, month, day, departureHour, departureMinute);
-            DateTime arrivalTime(year, month, (nextDay) ? day + 1 : day, arrivalHour, arrivalMinute);
+            DateTime arrivalTime(nextYear ? year + 1 : year, nextMonth ? month + 1 > 12 ? 1 : month + 1 : month, nextDay ? day + 1 > 31 ? 1 : day + 1 : day, arrivalHour, arrivalMinute);
 
             int sourceIndex = -1;
             int destinationIndex = -1;
@@ -82,10 +84,9 @@ struct Graph
             {
                 cout << "Error: Invalid port name in route data." << endl;
             }
-
         }
         file.close();
-        
+
         for (int i = 0; i < ports.getSize(); i++)
         {
             while (!heaps[i].isEmpty())
