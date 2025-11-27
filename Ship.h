@@ -16,12 +16,20 @@ struct Ship
         this->destinationPort = destinationPort;
         this->sourcePort = sourcePort;
     }
-    bool operator<(const Ship& other) const
+    bool operator<(const Ship &other) const
     {
         return arrivalTime < other.arrivalTime;
     }
-    bool operator>(const Ship& other) const
+    bool operator>(const Ship &other) const
     {
         return arrivalTime > other.arrivalTime;
+    }
+    bool operator==(const Ship &other) const
+    {
+        return arrivalTime == other.arrivalTime && companyName == other.companyName && destinationPort == other.destinationPort && sourcePort == other.sourcePort;
+    }
+    bool operator!=(const Ship &other) const
+    {
+        return !(*this == other);
     }
 };

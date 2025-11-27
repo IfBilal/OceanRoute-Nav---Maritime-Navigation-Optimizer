@@ -35,4 +35,14 @@ struct DateTime
     {
         return !(*this < other);
     }
+    bool operator==(const DateTime &other) const
+    {
+        return year == other.year && month == other.month && day == other.day && hour == other.hour && minute == other.minute;
+    }
+    double timeDiff(const DateTime &other) const
+    {
+        int totalMinutes1 = ((((year - 2000) * 12 + month) * 31 + day) * 24 + hour) * 60 + minute;
+        int totalMinutes2 = ((((other.year - 2000) * 12 + other.month) * 31 + other.day) * 24 + other.hour) * 60 + other.minute;
+        return (totalMinutes2 - totalMinutes1) / 60.0;
+    }
 };

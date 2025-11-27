@@ -19,7 +19,15 @@ public:
     {
         list.popAtHead();
     }
-    T& front()
+    Queue &operator=(const Queue<T> &other)
+    {
+        if (this != &other)
+        {
+            list = other.list;
+        }
+        return *this;
+    }
+    T &front()
     {
         return list.getHead();
     }

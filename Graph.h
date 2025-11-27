@@ -8,6 +8,7 @@
 #include "MinHeap.h"
 #include <fstream>
 using namespace std;
+const int DockingTime = 2; // in hours
 struct Graph
 {
     ::vector<Port *> ports;
@@ -27,6 +28,51 @@ struct Graph
             }
         }
         return -1;
+    }
+    double freeTime(Port *port, Ship ship)
+    {
+        Queue<Ship> temp = port->shipsQueue;
+        while (temp.front() != ship)
+        {
+            Ship currShip = temp.front();
+            temp.dequeue();
+            currShip.arrivalTime.hour += DockingTime;
+            if (currShip.arrivalTime.hour >= 24)
+            {
+                currShip.arrivalTime.hour -= 24;
+                currShip.arrivalTime.day++;
+                if (currShip.arrivalTime.day > 31)
+                {
+                    currShip.arrivalTime.day = 1;
+                    currShip.arrivalTime.month++;
+                    if (currShip.arrivalTime.month > 12)
+                    {
+                        currShip.arrivalTime.month = 1;
+                        currShip.arrivalTime.year++;
+                    }
+                }
+            }
+            if (currShip.arrivalTime.timeDiff(temp.front().arrivalTime) < 0)
+            {
+                temp.front().arrivalTime.hour += abs(temp.front().arrivalTime.timeDiff(currShip.arrivalTime));
+                if (temp.front().arrivalTime.hour >= 24)
+                {
+                    temp.front().arrivalTime.hour -= 24;
+                    temp.front().arrivalTime.day++;
+                    if (temp.front().arrivalTime.day > 31)
+                    {
+                        temp.front().arrivalTime.day = 1;
+                        temp.front().arrivalTime.month++;
+                        if (temp.front().arrivalTime.month > 12)
+                        {
+                            temp.front().arrivalTime.month = 1;
+                            temp.front().arrivalTime.year++;
+                        }
+                    }
+                }
+            }
+        }
+        return ship.arrivalTime.timeDiff(temp.front().arrivalTime) + DockingTime;
     }
     void createRoutes()
     {
