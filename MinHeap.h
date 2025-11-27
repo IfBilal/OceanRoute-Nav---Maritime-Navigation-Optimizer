@@ -51,7 +51,7 @@ public:
             i = smallest;
         }
     }
-    void push(int value)
+    void push(T value)
     {
         arr.push_back(value);
         heapifyUp(arr.getSize() - 1);
@@ -61,5 +61,13 @@ public:
         arr[0] = arr[arr.getSize() - 1];
         arr.pop_back();
         heapifyDown(0);
+    }
+    T top()
+    {
+        return arr[0];
+    }
+    bool isEmpty()
+    {
+        return arr.getSize() == 0;
     }
 };

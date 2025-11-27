@@ -10,10 +10,10 @@ private:
     int size;
 
 public:
-    vector()
+    vector(int c = 1)
     {
         size = 0;
-        capacity = 1;
+        capacity = c;
         arr = new T[capacity];
     }
 

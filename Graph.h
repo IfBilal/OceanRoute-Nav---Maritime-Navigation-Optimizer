@@ -5,6 +5,7 @@
 #include "Vector.h"
 #include "DateTime.h"
 #include "LinkedList.h"
+#include "MinHeap.h"
 #include <fstream>
 using namespace std;
 struct Graph
@@ -15,6 +16,7 @@ struct Graph
     {
         return arrHour < depHour || (arrHour == depHour && arrMinute < depMinute);
     }
+
     int findPortIndex(const string &portName)
     {
         for (int i = 0; i < ports.getSize(); i++)
@@ -30,6 +32,7 @@ struct Graph
     {
         ifstream file("Routes.txt");
         string line;
+        ::vector<MinHeap<Ship>> heaps(ports.getSize());
         while (getline(file, line))
         {
             string sourcePortName = line.substr(0, line.find(" "));
@@ -72,10 +75,23 @@ struct Graph
             {
                 Route route(sourcePortName, destinationPortName, destinationIndex, departureTime, arrivalTime, voyageCost, company);
                 ports[sourceIndex]->routes.insertAtHead(route);
+                Ship temp(ports[sourceIndex]->routes.head->data.arrivalTime, company, destinationPortName, sourcePortName);
+                heaps[destinationIndex].push(temp);
             }
             else
             {
                 cout << "Error: Invalid port name in route data." << endl;
+            }
+
+        }
+        file.close();
+        
+        for (int i = 0; i < ports.getSize(); i++)
+        {
+            while (!heaps[i].isEmpty())
+            {
+                ports[i]->shipsQueue.enqueue(heaps[i].top());
+                heaps[i].pop();
             }
         }
     }
