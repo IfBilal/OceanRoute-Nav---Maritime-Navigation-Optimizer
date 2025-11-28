@@ -6,6 +6,7 @@
 #include "DateTime.h"
 #include "LinkedList.h"
 #include "MinHeap.h"
+#include "Ship.h"
 #include <fstream>
 using namespace std;
 const int DockingTime = 2; // in hours
