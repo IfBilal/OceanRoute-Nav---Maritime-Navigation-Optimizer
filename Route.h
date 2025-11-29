@@ -15,6 +15,10 @@ struct Route
     double voyageCost;
     string company;
 
+    // Default constructor
+    Route() : sourcePortName(""), destinationPortName(""), destinationIndex(0), 
+              departureTime(DateTime()), arrivalTime(DateTime()), voyageCost(0.0), company("") {}
+
     Route(string sourcePortName, string destinationPortName, int destinationIndex, DateTime departureTime, DateTime arrivalTime, double voyageCost, string company)
     {
         this->sourcePortName = sourcePortName;

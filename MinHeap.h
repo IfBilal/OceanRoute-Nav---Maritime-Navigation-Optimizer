@@ -4,7 +4,7 @@ template <typename T>
 class MinHeap
 {
 private:
-    vector<T> arr;
+    ::vector<T> arr;
 
 public:
     bool hasLeftChild(int i)

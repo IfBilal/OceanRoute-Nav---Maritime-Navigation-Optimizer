@@ -45,4 +45,48 @@ struct DateTime
         int totalMinutes2 = ((((other.year - 2000) * 12 + other.month) * 31 + other.day) * 24 + other.hour) * 60 + other.minute;
         return (totalMinutes2 - totalMinutes1) / 60.0;
     }
+
+    // Add hours to current DateTime, handling day/month/year rollover
+    DateTime addHours(double hours) const
+    {
+        DateTime result = *this;
+        
+        // Add the fractional hours directly
+        double totalHours = result.hour + hours;
+        double totalMinutes = result.minute + (totalHours - static_cast<int>(totalHours)) * 60;
+        
+        // Extract whole hours and handle minutes
+        result.hour = static_cast<int>(totalHours);
+        result.minute = static_cast<int>(totalMinutes);
+        
+        // Handle minute overflow
+        if (result.minute >= 60)
+        {
+            result.minute -= 60;
+            result.hour++;
+        }
+        
+        // Handle day rollover
+        while (result.hour >= 24)
+        {
+            result.hour -= 24;
+            result.day++;
+            
+            // Handle month rollover
+            if (result.day > 31)
+            {
+                result.day = 1;
+                result.month++;
+                
+                // Handle year rollover
+                if (result.month > 12)
+                {
+                    result.month = 1;
+                    result.year++;
+                }
+            }
+        }
+        
+        return result;
+    }
 };

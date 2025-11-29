@@ -1,1 +1,39 @@
+.insane_particle
+
+# .github folder (do not push)
+.github/
+
+# Compiled binaries and executables
+oceanroute
 insane_particle
+test_pathfinding
+*.out
+*.exe
+*.o
+a.out
+
+# Common build directories
+build/
+bin/
+dist/
+
+# Test and build scripts
+build_and_test.sh
+test_pathfinding.cpp
+
+# PDFs and generated docs (do not push)
+*.pdf
+docs/**/*.pdf
+
+# Markdown files (do not push)
+*.md
+COMPREHENSIVE_ANALYSIS_REPORT.md
+FINAL_DELIVERY_SUMMARY.md
+TESTING_README.md
+
+# OS/editor junk
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.vscode/

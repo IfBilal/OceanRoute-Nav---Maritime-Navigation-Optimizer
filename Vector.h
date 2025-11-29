@@ -69,6 +69,15 @@ public:
         }
         return arr[index];
     }
+    
+    const T &operator[](int index) const
+    {
+        if (index >= size || index < 0)
+        {
+            throw out_of_range("Index out of range");
+        }
+        return arr[index];
+    }
 
     void pop_back()
     {
