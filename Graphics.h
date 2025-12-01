@@ -4,13 +4,14 @@
 #include "Vector.h"     
 #include "LinkedList.h" 
 
-// Animation State for a single route being drawn
+using namespace sf;
+
 struct RouteAnimation {
     int sourceIdx;
     int destIdx;
-    float progress; // 0.0 to 1.0
+    float progress;
     float speed;    // Speed of drawing
-    sf::Color color;
+    Color color;
     
     // Routes from file data
     string company;
@@ -28,38 +29,38 @@ struct ExplorationStep {
 
 class Graphics {
 private:
-    sf::RenderWindow& window; 
-    sf::Texture mapTexture;
-    sf::Sprite mapSprite;
-    sf::Font font;
+    RenderWindow& window; 
+    Texture mapTexture;
+    Sprite mapSprite;
+    Font font;
 
-    ::vector<sf::Vector2f> portScreenPositions; 
+    Vector<Vector2f> portScreenPositions; 
     
     // Active animations list
-    ::vector<RouteAnimation> activeAnimations;
+    Vector<RouteAnimation> activeAnimations;
     
     // Ship movement animations along final path
-    ::vector<RouteAnimation> shipAnimations;
+    Vector<RouteAnimation> shipAnimations;
     
     // Dijkstra exploration visualization
-    ::vector<ExplorationStep> explorationHistory;
+    Vector<ExplorationStep> explorationHistory;
     float explorationTime;
     bool isExploring;
-    ::vector<int> finalPathPorts;  // Ports in the final solution path
+    Vector<int> finalPathPorts;  // Ports in the final solution path
     
     // Path visualization
     LinkedList<Route> currentPath;
-    sf::Color pathColor;
+    Color pathColor;
     bool pathVisible;
 
     // Internal Helper Functions
-    sf::Vector2f getRelativeCoordinates(std::string cityName);
-    float getDistance(sf::Vector2f p1, sf::Vector2f p2);
-    float distToSegment(sf::Vector2f p, sf::Vector2f v, sf::Vector2f w);
-    sf::Color getCompanyColor(const string& company);
+    Vector2f getRelativeCoordinates(string cityName);
+    float getDistance(Vector2f p1, Vector2f p2);
+    float distToSegment(Vector2f p, Vector2f v, Vector2f w);
+    Color getCompanyColor(const string& company);
 
 public:
-    Graphics(sf::RenderWindow& win, Graph& graph);
+    Graphics(RenderWindow& win, Graph& graph);
 
     // Call this every frame to update animation progress
     void update(float deltaTime);
@@ -74,7 +75,7 @@ public:
     void startRouteAnimation(int startIdx, int endIdx, Route& data);
     
     // Set computed path for rendering
-    void setComputedPath(LinkedList<Route>& path, sf::Color color = sf::Color(255, 215, 0));
+    void setComputedPath(LinkedList<Route>& path, Color color = Color(255, 215, 0));
     
     // Clear path visualization
     void clearPath();
@@ -94,8 +95,8 @@ public:
     void startShipAnimation(const LinkedList<Route>& path, Graph& graph);
 
     int handleMouseClick(int mouseX, int mouseY);
-    void drawPortQueue(sf::Vector2f pos, int count);
+    void drawPortQueue(Vector2f pos, int count);
     void drawPath(LinkedList<Route>& path, Graph& graph);
-    void drawDockingQueue(Graph& graph, int portIdx, sf::Vector2f portPos);
+    void drawDockingQueue(Graph& graph, int portIdx, Vector2f portPos);
     void drawShipsAtPorts(Graph& graph);
 };

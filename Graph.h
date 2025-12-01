@@ -7,45 +7,17 @@
 #include "LinkedList.h"
 #include "MinHeap.h"
 #include "Ship.h"
+#include "PathNode.h"
+#include "PathResult.h"
 #include <fstream>
 using namespace std;
 
-const int DockingTime = 2; // in hours
-const double INF = 1e9;    // Infinity for pathfinding
-
-// Node for Dijkstra/A* priority queue
-struct PathNode {
-    double cost;        // Total cost/time to reach this port
-    int portIndex;      // Which port this represents
-    
-    PathNode(double c = 0, int p = 0) : cost(c), portIndex(p) {}
-    
-    bool operator<(const PathNode& other) const {
-        return cost < other.cost;  // Min-heap: lower cost = higher priority
-    }
-    bool operator>(const PathNode& other) const {
-        return cost > other.cost;
-    }
-};
-
-// Result of pathfinding with metadata
-struct PathResult {
-    LinkedList<Route> routes;     // Sequence of routes from source to destination
-    double totalCost;             // Total voyage cost + layover charges
-    double totalTime;             // Total travel time in hours
-    int nodesExplored;            // Number of ports examined
-    bool pathFound;               // Whether a valid path exists
-    
-    // Dijkstra exploration visualization data
-    ::vector<int> explorationOrder;  // Order in which ports were explored
-    ::vector<int> finalPathPorts;    // Ports in the final path (for highlighting)
-    
-    PathResult() : totalCost(0), totalTime(0), nodesExplored(0), pathFound(false) {}
-};
+const int DockingTime = 2;
+const double INF = 1e9;
 
 struct Graph
 {
-    ::vector<Port *> ports;
+    Vector<Port *> ports;
 
     bool isNextDay(int depHour, int depMinute, int arrHour, int arrMinute)
     {
@@ -122,9 +94,14 @@ struct Graph
     void createRoutes()
     {
         ifstream file("Routes.txt");
+        if (!file.is_open())
+        {
+            cerr << "ERROR: Cannot open Routes.txt" << endl;
+            return;
+        }
         string line;
         int portCount = ports.getSize();
-        ::vector<MinHeap<Ship>> heaps;
+        Vector<MinHeap<Ship>> heaps;
         for (int i = 0; i < portCount; i++) {
             heaps.push_back(MinHeap<Ship>());
         }
@@ -197,6 +174,11 @@ struct Graph
     void createPorts()
     {
         ifstream file("PortCharges.txt");
+        if (!file.is_open())
+        {
+            cerr << "ERROR: Cannot open PortCharges.txt" << endl;
+            return;
+        }
         string line;
         while (getline(file, line))
         {
@@ -205,13 +187,13 @@ struct Graph
             Port *port = new Port(name, portCharges);
             ports.push_back(port);
         }
+        file.close();
     }
     // void displayGraph()
     // {
     //     for (int i = 0; i < ports.getSize(); i++)
     //     {
     //         Node<Route> *current = ports[i]->routes.head;
-    //         cout<<"\n===============================================================\n";
     //         cout << "Port: " << ports[i]->name << ", Charges: " << ports[i]->portCharges << endl;
     //         while (current != nullptr)
     //         {
@@ -222,7 +204,6 @@ struct Graph
     //     }
     // }
     
-    // ========== PATHFINDING ALGORITHMS ==========
     
     // Dijkstra's algorithm for shortest path
     // optimizeTime: true = minimize time, false = minimize cost
@@ -246,11 +227,11 @@ struct Graph
         int n = ports.getSize();
         
         // Initialize data structures using custom arrays
-        ::vector<double> dist;
-        ::vector<int> parent;
-        ::vector<Route*> parentRoute;
-        ::vector<DateTime> arrivalTime;
-        ::vector<bool> visited;
+        Vector<double> dist;
+        Vector<int> parent;
+        Vector<Route*> parentRoute;
+        Vector<DateTime> arrivalTime;
+        Vector<bool> visited;
         
         // Initialize arrays with proper sizes
         for (int i = 0; i < n; i++) {
@@ -309,7 +290,7 @@ struct Graph
             // Early exit if we reached destination
             if (currentPort == destIdx) {
                 result.pathFound = true;
-                cout << "\n🎯 DESTINATION REACHED! " << ports[destIdx]->name << endl;
+                cout << "\n[DEST] DESTINATION REACHED! " << ports[destIdx]->name << endl;
                 if (optimizeTime) {
                     cout << "   Final time: " << current.cost << " hours" << endl;
                 } else {
@@ -335,15 +316,26 @@ struct Graph
                     continue;
                 }
                 
-                // ========== COMPANY FILTER ==========
-                // Skip routes from different companies if filter is active
+                // TEMPORAL FEASIBILITY CHECK: Can we catch this ship?
+                // We can only board if the ship departs AFTER we arrive at current port
+                DateTime ourArrivalAtCurrentPort = arrivalTime[currentPort];
+                if (route.departureTime < ourArrivalAtCurrentPort) {
+                    cout << "    - " << ports[nextPort]->name << " [SKIP: ship departs ";
+                    cout << route.departureTime.day << "/" << route.departureTime.month << " " 
+                         << route.departureTime.hour << ":" << route.departureTime.minute;
+                    cout << " BEFORE we arrive at " << ports[currentPort]->name << " on ";
+                    cout << ourArrivalAtCurrentPort.day << "/" << ourArrivalAtCurrentPort.month << " "
+                         << ourArrivalAtCurrentPort.hour << ":" << ourArrivalAtCurrentPort.minute << "]" << endl;
+                    routeNode = routeNode->next;
+                    continue;
+                }
+                
                 if (!companyFilter.empty() && route.company != companyFilter) {
                     cout << "    - " << ports[nextPort]->name << " [SKIP: company " << route.company << " != " << companyFilter << "]" << endl;
                     routeNode = routeNode->next;
                     continue;
                 }
                 
-                // ========== CALCULATE EDGE WEIGHT ==========
                 double edgeWeight = 0.0;
                 double waitHours = 0.0;
                 
@@ -359,12 +351,10 @@ struct Graph
                 waitHours = freeTime(ports[nextPort], arrivalShip);
                 
                 if (optimizeTime) {
-                    // TIME-BASED: minimize total travel duration
                     double voyageHours = route.departureTime.timeDiff(route.arrivalTime);
                     edgeWeight = voyageHours + waitHours;
                 }
                 else {
-                    // COST-BASED: minimize total cost
                     double voyageCost = route.voyageCost;
                     double layoverCharges = 0.0;
                     
@@ -376,7 +366,6 @@ struct Graph
                     edgeWeight = voyageCost + layoverCharges;
                 }
                 
-                // ========== RELAXATION STEP ==========
                 double newDist = dist[currentPort] + edgeWeight;
                 
                 cout << "    → " << ports[nextPort]->name << " [" << route.company << "]";
@@ -405,7 +394,7 @@ struct Graph
                     // Add to priority queue
                     pq.push(PathNode(newDist, nextPort));
                     
-                    cout << " ✓ BETTER PATH (was ";
+                    cout << " [OK] BETTER PATH (was ";
                     if (dist[nextPort] >= INF - 1) {
                         cout << "∞";
                     } else {
@@ -418,7 +407,7 @@ struct Graph
                     cout << ")" << endl;
                     routeCount++;
                 } else {
-                    cout << " ✗ worse than current ";
+                    cout << " [ERROR] worse than current ";
                     if (optimizeTime) {
                         cout << dist[nextPort] << "h" << endl;
                     } else {
@@ -430,7 +419,7 @@ struct Graph
             }
             
             if (routeCount > 0) {
-                cout << "  ► Added " << routeCount << " port(s) to exploration queue" << endl;
+                cout << "  > Added " << routeCount << " port(s) to exploration queue" << endl;
             }
         }
         
@@ -438,9 +427,8 @@ struct Graph
         cout << "Total ports explored: " << result.nodesExplored << " / " << ports.getSize() << endl;
         cout << "==================================\n" << endl;
         
-        // ========== PATH RECONSTRUCTION ==========
         if (!result.pathFound) {
-            cout << "❌ No path found from " << ports[sourceIdx]->name 
+            cout << "[FAIL] No path found from " << ports[sourceIdx]->name 
                  << " to " << ports[destIdx]->name << endl;
             return result;
         }
@@ -450,7 +438,7 @@ struct Graph
         
         // Build path from destination back to source using stored routes
         int current = destIdx;
-        ::vector<Route> pathRoutes;  // Temporary vector to reverse the path
+        Vector<Route> pathRoutes;  // Temporary vector to reverse the path
         
         // Record final path ports for visualization
         result.finalPathPorts.push_back(destIdx);
@@ -498,7 +486,7 @@ struct Graph
             hopNum++;
         }
         
-        cout << "\n✓ Path reconstructed successfully!" << endl;
+        cout << "\n[OK] Path reconstructed successfully!" << endl;
         cout << "  Total hops: " << pathRoutes.getSize() << endl;
         cout << "  Total cost: $" << result.totalCost << endl;
         cout << "  Total time: " << result.totalTime << " hours (" 
@@ -516,27 +504,20 @@ struct Graph
     // Placeholder for A* (to be implemented later)
     PathResult findPathAStar(int sourceIdx, int destIdx, DateTime startTime, bool optimizeTime = false)
     {
-        // For now, call Dijkstra as fallback
-        // TODO: Implement A* with heuristic function
         return findPathDijkstra(sourceIdx, destIdx, startTime, optimizeTime);
-    }
-    
-    // Placeholder for Floyd-Warshall (to be implemented later)
-    void computeFloydWarshall()
-    {
-        // TODO: Precompute all-pairs shortest paths
-        // Store in matrices for instant lookup
-    }
-    
-    // Placeholder for Johnson's (to be implemented later)
-    void computeJohnsons()
-    {
-        // TODO: Implement Johnson's algorithm for sparse graphs
     }
     
     Graph()
     {
         createPorts();
         createRoutes();
+    }
+    
+    ~Graph()
+    {
+        for (int i = 0; i < ports.getSize(); i++)
+        {
+            delete ports[i];
+        }
     }
 };

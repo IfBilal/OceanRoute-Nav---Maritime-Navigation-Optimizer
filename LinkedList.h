@@ -73,6 +73,15 @@ struct LinkedList
         }
         return head->data;
     }
+    
+    const T &getHead() const
+    {
+        if (!head)
+        {
+            throw out_of_range("Index out of range");
+        }
+        return head->data;
+    }
     void popAtHead()
     {
         if (head != nullptr)

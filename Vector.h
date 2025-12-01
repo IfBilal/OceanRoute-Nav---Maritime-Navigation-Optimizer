@@ -2,7 +2,7 @@
 #include <iostream>
 using namespace std;
 template <typename T>
-class vector
+class Vector
 {
 private:
     T *arr;
@@ -10,14 +10,14 @@ private:
     int size;
 
 public:
-    vector(int c = 1)
+    Vector(int c = 1)
     {
         size = 0;
         capacity = c;
         arr = new T[capacity];
     }
 
-    vector(const vector<T> &other)
+    Vector(const Vector<T> &other)
     {
         size = other.size;
         capacity = other.capacity;
@@ -28,7 +28,7 @@ public:
         }
     }
 
-    vector<T> &operator=(const vector<T> &other)
+    Vector<T> &operator=(const Vector<T> &other)
     {
         if (this != &other)
         {
@@ -83,7 +83,7 @@ public:
     {
         if (size == 0)
         {
-            throw std::out_of_range("Index out of range");
+            throw out_of_range("Index out of range");
         }
         size--;
     }
@@ -96,7 +96,7 @@ public:
     T &back()
     {
         if (size == 0)
-            throw std::out_of_range("Vector is empty");
+            throw out_of_range("Vector is empty");
         return arr[size - 1];
     }
 
@@ -121,7 +121,7 @@ public:
             arr = newArr;
         }
     }
-    ~vector()
+    ~Vector()
     {
         delete[] arr;
     }

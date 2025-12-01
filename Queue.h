@@ -31,6 +31,12 @@ public:
     {
         return list.getHead();
     }
+    
+    const T &front() const
+    {
+        return list.getHead();
+    }
+    
     bool isEmpty()
     {
         return list.empty();

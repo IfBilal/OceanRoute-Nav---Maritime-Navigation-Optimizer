@@ -4,7 +4,7 @@ template <typename T>
 class MinHeap
 {
 private:
-    ::vector<T> arr;
+    Vector<T> arr;
 
 public:
     bool hasLeftChild(int i)
@@ -58,15 +58,26 @@ public:
     }
     void pop()
     {
+        if (isEmpty())
+        {
+            throw out_of_range("Cannot pop from empty heap");
+        }
         arr[0] = arr[arr.getSize() - 1];
         arr.pop_back();
-        heapifyDown(0);
+        if (!isEmpty())
+        {
+            heapifyDown(0);
+        }
     }
-    T top()
+    const T& top() const
     {
+        if (isEmpty())
+        {
+            throw out_of_range("Cannot access top of empty heap");
+        }
         return arr[0];
     }
-    bool isEmpty()
+    bool isEmpty() const
     {
         return arr.getSize() == 0;
     }
