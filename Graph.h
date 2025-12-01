@@ -49,47 +49,36 @@ struct Graph
     double freeTime(Port *port, Ship ship)
     {
         Queue<Ship> temp = port->shipsQueue;
-        while (temp.front() != ship)
+        DateTime portFreeAt;
+        bool initialized = false;
+        
+        while (!temp.isEmpty() && temp.front() != ship)
         {
             Ship currShip = temp.front();
             temp.dequeue();
-            currShip.arrivalTime.hour += DockingTime;
-            if (currShip.arrivalTime.hour >= 24)
+            
+            // When can this ship start docking?
+            DateTime dockStartTime = currShip.arrivalTime;
+            if (initialized && portFreeAt > dockStartTime)
             {
-                currShip.arrivalTime.hour -= 24;
-                currShip.arrivalTime.day++;
-                if (currShip.arrivalTime.day > 31)
-                {
-                    currShip.arrivalTime.day = 1;
-                    currShip.arrivalTime.month++;
-                    if (currShip.arrivalTime.month > 12)
-                    {
-                        currShip.arrivalTime.month = 1;
-                        currShip.arrivalTime.year++;
-                    }
-                }
+                dockStartTime = portFreeAt;
             }
-            if (currShip.arrivalTime.timeDiff(temp.front().arrivalTime) < 0)
-            {
-                temp.front().arrivalTime.hour += abs(temp.front().arrivalTime.timeDiff(currShip.arrivalTime));
-                if (temp.front().arrivalTime.hour >= 24)
-                {
-                    temp.front().arrivalTime.hour -= 24;
-                    temp.front().arrivalTime.day++;
-                    if (temp.front().arrivalTime.day > 31)
-                    {
-                        temp.front().arrivalTime.day = 1;
-                        temp.front().arrivalTime.month++;
-                        if (temp.front().arrivalTime.month > 12)
-                        {
-                            temp.front().arrivalTime.month = 1;
-                            temp.front().arrivalTime.year++;
-                        }
-                    }
-                }
-            }
+            
+            // This ship finishes docking after DockingTime hours
+            portFreeAt = dockStartTime.addHours(DockingTime);
+            initialized = true;
         }
-        return ship.arrivalTime.timeDiff(temp.front().arrivalTime) + DockingTime;
+        
+        // Calculate when we can start docking
+        DateTime ourDockStart = ship.arrivalTime;
+        if (initialized && portFreeAt > ourDockStart)
+        {
+            ourDockStart = portFreeAt;
+        }
+        
+        // Return total time at port: wait time + docking time
+        double waitTime = ship.arrivalTime.timeDiff(ourDockStart);
+        return waitTime + DockingTime;
     }
     void createRoutes()
     {
@@ -189,20 +178,6 @@ struct Graph
         }
         file.close();
     }
-    // void displayGraph()
-    // {
-    //     for (int i = 0; i < ports.getSize(); i++)
-    //     {
-    //         Node<Route> *current = ports[i]->routes.head;
-    //         cout << "Port: " << ports[i]->name << ", Charges: " << ports[i]->portCharges << endl;
-    //         while (current != nullptr)
-    //         {
-    //             current->data.displayRoute();
-    //             cout<< "Destination port name : " << ports[current->data.destinationIndex]->name << endl<<endl;
-    //             current = current->next;
-    //         }
-    //     }
-    // }
     
     
     // Dijkstra's algorithm for shortest path
@@ -250,16 +225,10 @@ struct Graph
         MinHeap<PathNode> pq;
         pq.push(PathNode(0.0, sourceIdx));
         
-        cout << "\n====== DIJKSTRA EXPLORATION LOG ======" << endl;
-        cout << "Source: " << ports[sourceIdx]->name << endl;
-        cout << "Destination: " << ports[destIdx]->name << endl;
-        cout << "Company Filter: " << (companyFilter.empty() ? "ALL COMPANIES" : companyFilter) << endl;
-        cout << "Optimization: " << (optimizeTime ? "TIME (minimize hours)" : "COST (minimize $)") << endl;
-        cout << "======================================\n" << endl;
-        
         // Main Dijkstra loop
         int iteration = 0;
         while (!pq.isEmpty()) {
+            iteration++;
             PathNode current = pq.top();
             pq.pop();
             
@@ -267,71 +236,45 @@ struct Graph
             
             // Skip if already visited
             if (visited[currentPort]) {
-                cout << "  [SKIP] " << ports[currentPort]->name << " (already visited)" << endl;
                 continue;
             }
             
             visited[currentPort] = true;
             result.nodesExplored++;
-            iteration++;
             
             // Record exploration order for visualization
             result.explorationOrder.push_back(currentPort);
             
-            // Log exploration
-            cout << "\n--- Iteration " << iteration << " ---" << endl;
-            cout << "EXPLORING: " << ports[currentPort]->name;
-            if (optimizeTime) {
-                cout << " (accumulated time: " << current.cost << " hours)" << endl;
-            } else {
-                cout << " (accumulated cost: $" << current.cost << ")" << endl;
-            }
-            
             // Early exit if we reached destination
             if (currentPort == destIdx) {
                 result.pathFound = true;
-                cout << "\n[DEST] DESTINATION REACHED! " << ports[destIdx]->name << endl;
-                if (optimizeTime) {
-                    cout << "   Final time: " << current.cost << " hours" << endl;
-                } else {
-                    cout << "   Final cost: $" << current.cost << endl;
-                }
                 break;
             }
             
             // Explore all outgoing routes from current port
             Node<Route>* routeNode = ports[currentPort]->routes.head;
-            
-            cout << "  Checking neighbors of " << ports[currentPort]->name << ":" << endl;
             int routeCount = 0;
             
             while (routeNode != nullptr) {
+                routeCount++;
                 Route& route = routeNode->data;
                 int nextPort = route.destinationIndex;
                 
                 // Skip if already visited
                 if (visited[nextPort]) {
-                    cout << "    - " << ports[nextPort]->name << " [SKIP: already visited]" << endl;
                     routeNode = routeNode->next;
                     continue;
                 }
                 
-                // TEMPORAL FEASIBILITY CHECK: Can we catch this ship?
-                // We can only board if the ship departs AFTER we arrive at current port
+                // Temporal feasibility: Can we catch this ship?
                 DateTime ourArrivalAtCurrentPort = arrivalTime[currentPort];
                 if (route.departureTime < ourArrivalAtCurrentPort) {
-                    cout << "    - " << ports[nextPort]->name << " [SKIP: ship departs ";
-                    cout << route.departureTime.day << "/" << route.departureTime.month << " " 
-                         << route.departureTime.hour << ":" << route.departureTime.minute;
-                    cout << " BEFORE we arrive at " << ports[currentPort]->name << " on ";
-                    cout << ourArrivalAtCurrentPort.day << "/" << ourArrivalAtCurrentPort.month << " "
-                         << ourArrivalAtCurrentPort.hour << ":" << ourArrivalAtCurrentPort.minute << "]" << endl;
                     routeNode = routeNode->next;
                     continue;
                 }
                 
+                // Company filter check
                 if (!companyFilter.empty() && route.company != companyFilter) {
-                    cout << "    - " << ports[nextPort]->name << " [SKIP: company " << route.company << " != " << companyFilter << "]" << endl;
                     routeNode = routeNode->next;
                     continue;
                 }
@@ -368,95 +311,41 @@ struct Graph
                 
                 double newDist = dist[currentPort] + edgeWeight;
                 
-                cout << "    → " << ports[nextPort]->name << " [" << route.company << "]";
-                
-                if (optimizeTime) {
-                    cout << " voyage=" << route.departureTime.timeDiff(route.arrivalTime) << "h";
-                    cout << " wait=" << waitHours << "h";
-                    cout << " total=" << newDist << "h";
-                } else {
-                    cout << " cost=$" << route.voyageCost;
-                    if (waitHours > 12.0) {
-                        double layoverFee = ports[nextPort]->portCharges * (waitHours / 24.0);
-                        cout << " layover=$" << layoverFee;
-                    }
-                    cout << " total=$" << newDist;
-                }
-                
                 if (newDist < dist[nextPort]) {
                     dist[nextPort] = newDist;
                     parent[nextPort] = currentPort;
-                    parentRoute[nextPort] = &(routeNode->data);  // Store the route pointer
+                    parentRoute[nextPort] = &(routeNode->data);
                     
                     // Update arrival time at next port
                     arrivalTime[nextPort] = route.arrivalTime.addHours(waitHours);
                     
                     // Add to priority queue
                     pq.push(PathNode(newDist, nextPort));
-                    
-                    cout << " [OK] BETTER PATH (was ";
-                    if (dist[nextPort] >= INF - 1) {
-                        cout << "∞";
-                    } else {
-                        if (optimizeTime) {
-                            cout << dist[nextPort] << "h";
-                        } else {
-                            cout << "$" << dist[nextPort];
-                        }
-                    }
-                    cout << ")" << endl;
-                    routeCount++;
-                } else {
-                    cout << " [ERROR] worse than current ";
-                    if (optimizeTime) {
-                        cout << dist[nextPort] << "h" << endl;
-                    } else {
-                        cout << "$" << dist[nextPort] << endl;
-                    }
                 }
                 
                 routeNode = routeNode->next;
             }
-            
-            if (routeCount > 0) {
-                cout << "  > Added " << routeCount << " port(s) to exploration queue" << endl;
-            }
         }
         
-        cout << "\n====== EXPLORATION COMPLETE ======" << endl;
-        cout << "Total ports explored: " << result.nodesExplored << " / " << ports.getSize() << endl;
-        cout << "==================================\n" << endl;
-        
         if (!result.pathFound) {
-            cout << "[FAIL] No path found from " << ports[sourceIdx]->name 
-                 << " to " << ports[destIdx]->name << endl;
             return result;
         }
         
-        cout << "\n====== PATH RECONSTRUCTION ======" << endl;
-        cout << "Backtracking from " << ports[destIdx]->name << " to " << ports[sourceIdx]->name << "..." << endl;
-        
         // Build path from destination back to source using stored routes
         int current = destIdx;
-        Vector<Route> pathRoutes;  // Temporary vector to reverse the path
+        Vector<Route> pathRoutes;
         
         // Record final path ports for visualization
         result.finalPathPorts.push_back(destIdx);
         
-        int hopNum = 1;
         while (parent[current] != -1) {
             int prev = parent[current];
             Route* route = parentRoute[current];
             
             if (route == nullptr) {
-                cout << "Error: Route tracking failed during reconstruction" << endl;
                 result.pathFound = false;
                 return result;
             }
-            
-            cout << "  Hop " << hopNum << " (backwards): " << ports[prev]->name 
-                 << " → " << ports[current]->name 
-                 << " [" << route->company << "] $" << route->voyageCost << endl;
             
             // Record port in final path
             result.finalPathPorts.push_back(prev);
@@ -466,7 +355,7 @@ struct Graph
             
             // Accumulate costs and times
             result.totalCost += route->voyageCost;
-            result.totalTime += route->departureTime.timeDiff(route->arrivalTime);  // FIX: departure.timeDiff(arrival) for positive time
+            result.totalTime += route->departureTime.timeDiff(route->arrivalTime);
             
             // Add layover charges if applicable
             Ship ship(route->arrivalTime, 
@@ -477,21 +366,11 @@ struct Graph
             if (wait > 12.0) {
                 double layoverFee = ports[current]->portCharges * (wait / 24.0);
                 result.totalCost += layoverFee;
-                cout << "    + Layover charge at " << ports[current]->name 
-                     << ": $" << layoverFee << " (wait: " << wait << "h)" << endl;
             }
             result.totalTime += wait;
             
             current = prev;
-            hopNum++;
         }
-        
-        cout << "\n[OK] Path reconstructed successfully!" << endl;
-        cout << "  Total hops: " << pathRoutes.getSize() << endl;
-        cout << "  Total cost: $" << result.totalCost << endl;
-        cout << "  Total time: " << result.totalTime << " hours (" 
-             << (result.totalTime / 24.0) << " days)" << endl;
-        cout << "=================================\n" << endl;
         
         // Reverse the path and add to result (since we built it backwards)
         for (int i = pathRoutes.getSize() - 1; i >= 0; i--) {
@@ -502,9 +381,9 @@ struct Graph
     }
     
     // Placeholder for A* (to be implemented later)
-    PathResult findPathAStar(int sourceIdx, int destIdx, DateTime startTime, bool optimizeTime = false)
+    PathResult findPathAStar(int sourceIdx, int destIdx, DateTime startTime, bool optimizeTime = false, string companyFilter = "")
     {
-        return findPathDijkstra(sourceIdx, destIdx, startTime, optimizeTime);
+        return findPathDijkstra(sourceIdx, destIdx, startTime, optimizeTime, companyFilter);
     }
     
     Graph()

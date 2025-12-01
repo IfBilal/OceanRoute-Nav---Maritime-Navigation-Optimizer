@@ -401,7 +401,8 @@ int main() {
                         } else {
                             // Valid date input - use 00:00 (midnight) as default start time
                             // The system will automatically select the earliest available departure on this date
-                            startTime = DateTime(year, month, day, 0, 0);
+                            // DateTime constructor: DateTime(year, month, day, hour, minute)
+                            startTime = DateTime(year, month, day, 0, 0);  // Now correctly using year from user input
                             
                             dateText.setFillColor(Color(0, 255, 0));  // Green for valid
                             
