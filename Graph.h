@@ -10,6 +10,7 @@
 #include "PathNode.h"
 #include "PathResult.h"
 #include <fstream>
+#include <cmath>
 using namespace std;
 
 const int DockingTime = 2;
@@ -177,6 +178,61 @@ struct Graph
             ports.push_back(port);
         }
         file.close();
+    }
+    
+    void loadCoordinates()
+    {
+        ifstream file("Coordinates.txt");
+        if (!file.is_open())
+        {
+            cerr << "ERROR: Cannot open Coordinates.txt" << endl;
+            return;
+        }
+        
+        string line;
+        while (getline(file, line))
+        {
+            // Parse: PortName Latitude Longitude
+            int firstSpace = line.find(' ');
+            if (firstSpace == -1) continue;
+            
+            string portName = line.substr(0, firstSpace);
+            
+            int secondSpace = line.find(' ', firstSpace + 1);
+            if (secondSpace == -1) continue;
+            
+            string latStr = line.substr(firstSpace + 1, secondSpace - firstSpace - 1);
+            string lonStr = line.substr(secondSpace + 1);
+            
+            double lat = stod(latStr);
+            double lon = stod(lonStr);
+            
+            for (int i = 0; i < ports.getSize(); i++)
+            {
+                if (ports[i]->name == portName)
+                {
+                    ports[i]->latitude = lat;
+                    ports[i]->longitude = lon;
+                    break;
+                }
+            }
+        }
+        file.close();
+    }
+    
+    double euclideanDistance(int port1Idx, int port2Idx)
+    {
+        double lat1 = ports[port1Idx]->latitude;
+        double lon1 = ports[port1Idx]->longitude;
+        double lat2 = ports[port2Idx]->latitude;
+        double lon2 = ports[port2Idx]->longitude;
+        
+        double dLat = lat2 - lat1;
+        double dLon = lon2 - lon1;
+        
+        double distance = sqrt(dLat * dLat + dLon * dLon);
+        
+        return distance;
     }
 
     void DFSfindPaths(int currentIdx, int destIdx, DateTime availableTime,
@@ -552,18 +608,274 @@ struct Graph
         return result;
     }
     
-    // Placeholder for A* (to be implemented later)
-    PathResult findPathAStar(int sourceIdx, int destIdx, DateTime startTime, bool optimizeTime = false, 
-                            string companyFilter = "", Vector<string> avoidPorts = Vector<string>(), 
-                            double maxVoyageTime = -1)
+    // A* algorithm for shortest path with heuristic
+    // optimizeTime: true = minimize time, false = minimize cost
+    // companyFilter: empty string = all companies, otherwise only use routes from this company
+    // avoidPorts: list of port names to exclude from path
+    // maxVoyageTime: maximum total voyage time allowed (-1 = no limit)
+    PathResult findPathAStar(int sourceIdx, int destIdx, DateTime startTime, bool optimizeTime = false,
+                             string companyFilter = "", Vector<string> avoidPorts = Vector<string>(),
+                             double maxVoyageTime = -1)
     {
-        return findPathDijkstra(sourceIdx, destIdx, startTime, optimizeTime, companyFilter, avoidPorts, maxVoyageTime);
+        PathResult result;
+
+        // Validate inputs
+        if (sourceIdx < 0 || sourceIdx >= ports.getSize() ||
+            destIdx < 0 || destIdx >= ports.getSize())
+        {
+            cout << "Error: Invalid port indices" << endl;
+            return result;
+        }
+
+        if (sourceIdx == destIdx)
+        {
+            cout << "Error: Source and destination are the same" << endl;
+            return result;
+        }
+
+        int n = ports.getSize();
+
+        // Pre-calculate heuristic for all ports to destination
+        Vector<double> heuristic;
+        for (int i = 0; i < n; i++)
+        {
+            heuristic.push_back(euclideanDistance(i, destIdx));
+        }
+
+        // Initialize data structures using custom arrays
+        Vector<double> dist;
+        Vector<double> timeElapsed; // Track actual time regardless of optimization mode
+        Vector<int> parent;
+        Vector<Route *> parentRoute;
+        Vector<DateTime> arrivalTime;
+        Vector<bool> visited;
+
+        // Initialize arrays with proper sizes
+        for (int i = 0; i < n; i++)
+        {
+            dist.push_back(INF);
+            timeElapsed.push_back(INF);
+            parent.push_back(-1);
+            parentRoute.push_back(nullptr);
+            arrivalTime.push_back(DateTime());
+            visited.push_back(false);
+        }
+
+        // Set source
+        dist[sourceIdx] = 0.0;
+        timeElapsed[sourceIdx] = 0.0;
+        arrivalTime[sourceIdx] = startTime;
+
+        // Priority queue for A* (using dist + heuristic)
+        MinHeap<PathNode> pq;
+        pq.push(PathNode(heuristic[sourceIdx], sourceIdx));
+
+        // Main A* loop
+        int iteration = 0;
+        while (!pq.isEmpty())
+        {
+            iteration++;
+            PathNode current = pq.top();
+            pq.pop();
+
+            int currentPort = current.portIndex;
+
+            // Skip if already visited
+            if (visited[currentPort])
+            {
+                continue;
+            }
+
+            visited[currentPort] = true;
+            result.nodesExplored++;
+
+            // Record exploration order for visualization
+            result.explorationOrder.push_back(currentPort);
+
+            // Early exit if we reached destination
+            if (currentPort == destIdx)
+            {
+                // Check max voyage time limit at destination
+                if (maxVoyageTime >= 0 && timeElapsed[destIdx] > maxVoyageTime)
+                {
+                    result.pathFound = false;
+                    return result;
+                }
+                result.pathFound = true;
+                break;
+            }
+
+            // Explore all outgoing routes from current port
+            Node<Route> *routeNode = ports[currentPort]->routes.head;
+            int routeCount = 0;
+
+            while (routeNode != nullptr)
+            {
+                routeCount++;
+                Route &route = routeNode->data;
+                int nextPort = route.destinationIndex;
+
+                // Skip if already visited
+                if (visited[nextPort])
+                {
+                    routeNode = routeNode->next;
+                    continue;
+                }
+
+                // Check if next port is in avoid list
+                bool shouldAvoid = false;
+                for (int i = 0; i < avoidPorts.getSize(); i++)
+                {
+                    if (ports[nextPort]->name == avoidPorts[i])
+                    {
+                        shouldAvoid = true;
+                        break;
+                    }
+                }
+
+                if (shouldAvoid)
+                {
+                    routeNode = routeNode->next;
+                    continue;
+                }
+
+                // Temporal feasibility: Can we catch this ship?
+                DateTime ourArrivalAtCurrentPort = arrivalTime[currentPort];
+                if (route.departureTime < ourArrivalAtCurrentPort)
+                {
+                    routeNode = routeNode->next;
+                    continue;
+                }
+
+                // Company filter check
+                if (!companyFilter.empty() && route.company != companyFilter)
+                {
+                    routeNode = routeNode->next;
+                    continue;
+                }
+
+                double edgeWeight = 0.0;
+                double waitHours = 0.0;
+
+                // Create ship for queue simulation
+                Ship arrivalShip(
+                    route.arrivalTime,
+                    route.company,
+                    route.destinationPortName,
+                    route.sourcePortName);
+
+                // Calculate wait time at destination port
+                waitHours = freeTime(ports[nextPort], arrivalShip);
+
+                if (optimizeTime)
+                {
+                    double voyageHours = route.departureTime.timeDiff(route.arrivalTime);
+                    edgeWeight = voyageHours + waitHours;
+                }
+                else
+                {
+                    double voyageCost = route.voyageCost;
+                    double layoverCharges = 0.0;
+
+                    // Add port charges if layover exceeds 12 hours
+                    if (waitHours > 12.0)
+                    {
+                        layoverCharges = ports[nextPort]->portCharges * (waitHours / 24.0);
+                    }
+
+                    edgeWeight = voyageCost + layoverCharges;
+                }
+
+                double newDist = dist[currentPort] + edgeWeight;
+
+                // Calculate actual time elapsed (regardless of optimization mode)
+                double voyageHours = route.departureTime.timeDiff(route.arrivalTime);
+                double newTimeElapsed = timeElapsed[currentPort] + voyageHours + waitHours;
+
+                // Note: Max voyage time is NOT checked during exploration
+                // It's checked only at destination to avoid pruning valid paths
+
+                if (newDist < dist[nextPort])
+                {
+                    dist[nextPort] = newDist;
+                    timeElapsed[nextPort] = newTimeElapsed;
+                    parent[nextPort] = currentPort;
+                    parentRoute[nextPort] = &(routeNode->data);
+
+                    // Update arrival time at next port
+                    arrivalTime[nextPort] = route.arrivalTime.addHours(waitHours);
+
+                    // Add to priority queue with dist + heuristic for A*
+                    pq.push(PathNode(newDist + heuristic[nextPort], nextPort));
+                }
+
+                routeNode = routeNode->next;
+            }
+        }
+
+        if (!result.pathFound)
+        {
+            return result;
+        }
+
+        // Build path from destination back to source using stored routes
+        int current = destIdx;
+        Vector<Route> pathRoutes;
+
+        // Record final path ports for visualization
+        result.finalPathPorts.push_back(destIdx);
+
+        while (parent[current] != -1)
+        {
+            int prev = parent[current];
+            Route *route = parentRoute[current];
+
+            if (route == nullptr)
+            {
+                result.pathFound = false;
+                return result;
+            }
+
+            // Record port in final path
+            result.finalPathPorts.push_back(prev);
+
+            // Store route for reversal
+            pathRoutes.push_back(*route);
+
+            // Accumulate costs and times
+            result.totalCost += route->voyageCost;
+            result.totalTime += route->departureTime.timeDiff(route->arrivalTime);
+
+            // Add layover charges if applicable
+            Ship ship(route->arrivalTime,
+                      route->company,
+                      route->destinationPortName,
+                      route->sourcePortName);
+            double wait = freeTime(ports[current], ship);
+            if (wait > 12.0)
+            {
+                double layoverFee = ports[current]->portCharges * (wait / 24.0);
+                result.totalCost += layoverFee;
+            }
+            result.totalTime += wait;
+
+            current = prev;
+        }
+
+        // Reverse the path and add to result (since we built it backwards)
+        for (int i = pathRoutes.getSize() - 1; i >= 0; i--)
+        {
+            result.routes.insertAtEnd(pathRoutes[i]);
+        }
+
+        return result;
     }
-    
+
     Graph()
     {
         createPorts();
         createRoutes();
+        loadCoordinates();
     }
     
     ~Graph()
