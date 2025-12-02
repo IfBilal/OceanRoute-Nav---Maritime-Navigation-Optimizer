@@ -408,7 +408,7 @@ int main() {
                             
                             currentState = SELECTING_MODE;
                             stateString = stateToString(currentState);
-                            instructions.setString("Select mode: [1]Pick Company [2]Multi-Company [3]Auto-find Best");
+                            instructions.setString("Select mode: [1]Pick Company [2]Multi-Company");
                             textBounds = instructions.getLocalBounds();
                             instructions.setOrigin(textBounds.width / 2.0f, 0);
                             
@@ -417,7 +417,6 @@ int main() {
                             cout << "\n>>> Select pathfinding mode:" << endl;
                             cout << "  1. User-Preferred Company (you pick one company)" << endl;
                             cout << "  2. Multi-Company Path (any combination of companies)" << endl;
-                            cout << "  3. Auto-find Best Company (finds best single-company path)" << endl;
                         }
                     }
                     else if (currentState == READY_TO_COMPUTE) {
@@ -439,49 +438,6 @@ int main() {
                             
                             // Set exploration data for visualization
                             renderer.setExplorationData(pathResult);
-                        }
-                        else if (selectedCompany == "AUTO") {
-                            // Mode 3: Auto-find best single-company path
-                            cout << "\n========== DIJKSTRA (" << (optimizeTime ? "TIME" : "COST") << " - AUTO-FIND BEST COMPANY) ==========" << endl;
-                            cout << "Source: " << oceanGraph.ports[sourcePort]->name << endl;
-                            cout << "Destination: " << oceanGraph.ports[destPort]->name << endl;
-                            cout << "Trying all companies to find best single-company path..." << endl;
-                            
-                            PathResult bestResult;
-                            string bestCompany = "";
-                            double bestMetric = 1e9;
-                            
-                            // Try each company
-                            for (int i = 0; i < companies.getSize(); i++) {
-                                PathResult tempResult = oceanGraph.findPathDijkstra(sourcePort, destPort, startTime, optimizeTime, companies[i]);
-                                
-                                if (tempResult.pathFound) {
-                                    double metric = optimizeTime ? tempResult.totalTime : tempResult.totalCost;
-                                    cout << "  " << companies[i] << ": ";
-                                    if (optimizeTime) {
-                                        cout << tempResult.totalTime << " hours";
-                                    } else {
-                                        cout << "$" << tempResult.totalCost;
-                                    }
-                                    cout << " (" << tempResult.nodesExplored << " nodes)" << endl;
-                                    
-                                    if (metric < bestMetric) {
-                                        bestMetric = metric;
-                                        bestResult = tempResult;
-                                        bestCompany = companies[i];
-                                    }
-                                }
-                            }
-                            
-                            pathResult = bestResult;
-                            selectedCompany = bestCompany;
-                            
-                            // Set exploration data for visualization (from best result)
-                            renderer.setExplorationData(pathResult);
-                            
-                            if (pathResult.pathFound) {
-                                cout << "\n>>> BEST COMPANY: " << bestCompany << endl;
-                            }
                         }
                         else {
                             // Mode 2: Multi-company path (no company filter)
@@ -621,22 +577,10 @@ int main() {
                         selectedCompany = "";  // Empty = allow all companies
                         currentState = SELECTING_ALGORITHM;
                         stateString = stateToString(currentState);
-                        instructions.setString("Select algorithm: [1]Cost [2]Time");
+                        instructions.setString("Select optimization: [1]Cost [2]Time");
                         textBounds = instructions.getLocalBounds();
                         instructions.setOrigin(textBounds.width / 2.0f, 0);
                         cout << ">>> Selected: MULTI-COMPANY PATH mode (any companies allowed)" << endl;
-                        cout << ">>> Select optimization: [1]Cost [2]Time" << endl;
-                        inputDelayClock.restart(); // Reset delay
-                    }
-                    else if (event.key.code == Keyboard::Num3) {
-                        userPicksCompany = false;
-                        selectedCompany = "AUTO";  // Special flag for auto-find
-                        currentState = SELECTING_ALGORITHM;
-                        stateString = stateToString(currentState);
-                        instructions.setString("Select algorithm: [1]Cost [2]Time");
-                        textBounds = instructions.getLocalBounds();
-                        instructions.setOrigin(textBounds.width / 2.0f, 0);
-                        cout << ">>> Selected: AUTO-FIND BEST COMPANY mode (single-company paths only)" << endl;
                         cout << ">>> Select optimization: [1]Cost [2]Time" << endl;
                         inputDelayClock.restart(); // Reset delay
                     }
@@ -733,7 +677,7 @@ int main() {
                                 selectedCompanyIndex = i;
                                 currentState = SELECTING_ALGORITHM;
                                 stateString = stateToString(currentState);
-                                instructions.setString("Select algorithm: [1]Cost [2]Time");
+                                instructions.setString("Select optimization: [1]Cost [2]Time");
                                 textBounds = instructions.getLocalBounds();
                                 instructions.setOrigin(textBounds.width / 2.0f, 0);
                                 cout << ">>> Selected: " << selectedCompany << endl;

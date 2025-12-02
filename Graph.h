@@ -181,7 +181,8 @@ struct Graph
 
     void DFSfindPaths(int currentIdx, int destIdx, DateTime availableTime,
                       Vector<bool> &visited, LinkedList<Route> &currentPath,
-                      AllPathsResult &result, int &nodesVisited, DateTime startTime)
+                      AllPathsResult &result, int &nodesVisited, DateTime startTime,
+                      Vector<string> avoidPorts = Vector<string>(), double maxVoyageTime = -1)
     {
         nodesVisited++;
         
@@ -228,6 +229,12 @@ struct Graph
             
             pathResult.totalCost = totalCost;
             pathResult.totalTime = totalTime;
+            
+            // Check max voyage time limit for complete path BEFORE adding
+            if (maxVoyageTime >= 0 && totalTime > maxVoyageTime) {
+                return;
+            }
+            
             result.allPaths.push_back(pathResult);
             result.totalPathsFound++;
             return;
@@ -251,9 +258,26 @@ struct Graph
                 double waitDock = freeTime(ports[nextIdx], tempShip);
                 DateTime nextAvailable = currRoute.arrivalTime.addHours(waitDock);
 
+                // Check if next port is in avoid list
+                bool shouldAvoid = false;
+                for (int i = 0; i < avoidPorts.getSize(); i++) {
+                    if (ports[nextIdx]->name == avoidPorts[i]) {
+                        shouldAvoid = true;
+                        break;
+                    }
+                }
+                
+                if (shouldAvoid) {
+                    routeNode = routeNode->next;
+                    continue;
+                }
+                
+                // Note: Max voyage time is checked on complete paths only (at destination)
+                // Not checked here during exploration to allow full path discovery
+                
                 visited[nextIdx] = true;
                 currentPath.insertAtEnd(currRoute);
-                DFSfindPaths(nextIdx, destIdx, nextAvailable, visited, currentPath, result, nodesVisited, startTime);
+                DFSfindPaths(nextIdx, destIdx, nextAvailable, visited, currentPath, result, nodesVisited, startTime, avoidPorts, maxVoyageTime);
                 visited[nextIdx] = false;
                 currentPath.popAtEnd();
             }
@@ -262,7 +286,8 @@ struct Graph
         }
     }
 
-    AllPathsResult findAllPaths(string source, string destination, DateTime start)
+    AllPathsResult findAllPaths(string source, string destination, DateTime start, 
+                                Vector<string> avoidPorts = Vector<string>(), double maxVoyageTime = -1)
     {
         int srcIdx = findPortIndex(source);
         int destIdx = findPortIndex(destination);
@@ -287,7 +312,7 @@ struct Graph
         LinkedList<Route> currentPath;
         int nodesVisited = 0;
 
-        DFSfindPaths(srcIdx, destIdx, start, visited, currentPath, result, nodesVisited, start);
+        DFSfindPaths(srcIdx, destIdx, start, visited, currentPath, result, nodesVisited, start, avoidPorts, maxVoyageTime);
         result.nodesExplored = nodesVisited;
 
         return result;
@@ -296,7 +321,11 @@ struct Graph
     // Dijkstra's algorithm for shortest path
     // optimizeTime: true = minimize time, false = minimize cost
     // companyFilter: empty string = all companies, otherwise only use routes from this company
-    PathResult findPathDijkstra(int sourceIdx, int destIdx, DateTime startTime, bool optimizeTime = false, string companyFilter = "")
+    // avoidPorts: list of port names to exclude from path
+    // maxVoyageTime: maximum total voyage time allowed (-1 = no limit)
+    PathResult findPathDijkstra(int sourceIdx, int destIdx, DateTime startTime, bool optimizeTime = false, 
+                                string companyFilter = "", Vector<string> avoidPorts = Vector<string>(), 
+                                double maxVoyageTime = -1)
     {
         PathResult result;
         
@@ -316,6 +345,7 @@ struct Graph
         
         // Initialize data structures using custom arrays
         Vector<double> dist;
+        Vector<double> timeElapsed;  // Track actual time regardless of optimization mode
         Vector<int> parent;
         Vector<Route*> parentRoute;
         Vector<DateTime> arrivalTime;
@@ -324,6 +354,7 @@ struct Graph
         // Initialize arrays with proper sizes
         for (int i = 0; i < n; i++) {
             dist.push_back(INF);
+            timeElapsed.push_back(INF);
             parent.push_back(-1);
             parentRoute.push_back(nullptr);
             arrivalTime.push_back(DateTime());
@@ -332,6 +363,7 @@ struct Graph
         
         // Set source
         dist[sourceIdx] = 0.0;
+        timeElapsed[sourceIdx] = 0.0;
         arrivalTime[sourceIdx] = startTime;
         
         // Priority queue for Dijkstra
@@ -360,6 +392,11 @@ struct Graph
             
             // Early exit if we reached destination
             if (currentPort == destIdx) {
+                // Check max voyage time limit at destination
+                if (maxVoyageTime >= 0 && timeElapsed[destIdx] > maxVoyageTime) {
+                    result.pathFound = false;
+                    return result;
+                }
                 result.pathFound = true;
                 break;
             }
@@ -375,6 +412,20 @@ struct Graph
                 
                 // Skip if already visited
                 if (visited[nextPort]) {
+                    routeNode = routeNode->next;
+                    continue;
+                }
+                
+                // Check if next port is in avoid list
+                bool shouldAvoid = false;
+                for (int i = 0; i < avoidPorts.getSize(); i++) {
+                    if (ports[nextPort]->name == avoidPorts[i]) {
+                        shouldAvoid = true;
+                        break;
+                    }
+                }
+                
+                if (shouldAvoid) {
                     routeNode = routeNode->next;
                     continue;
                 }
@@ -424,8 +475,16 @@ struct Graph
                 
                 double newDist = dist[currentPort] + edgeWeight;
                 
+                // Calculate actual time elapsed (regardless of optimization mode)
+                double voyageHours = route.departureTime.timeDiff(route.arrivalTime);
+                double newTimeElapsed = timeElapsed[currentPort] + voyageHours + waitHours;
+                
+                // Note: Max voyage time is NOT checked during exploration
+                // It's checked only at destination to avoid pruning valid paths
+                
                 if (newDist < dist[nextPort]) {
                     dist[nextPort] = newDist;
+                    timeElapsed[nextPort] = newTimeElapsed;
                     parent[nextPort] = currentPort;
                     parentRoute[nextPort] = &(routeNode->data);
                     
@@ -494,9 +553,11 @@ struct Graph
     }
     
     // Placeholder for A* (to be implemented later)
-    PathResult findPathAStar(int sourceIdx, int destIdx, DateTime startTime, bool optimizeTime = false, string companyFilter = "")
+    PathResult findPathAStar(int sourceIdx, int destIdx, DateTime startTime, bool optimizeTime = false, 
+                            string companyFilter = "", Vector<string> avoidPorts = Vector<string>(), 
+                            double maxVoyageTime = -1)
     {
-        return findPathDijkstra(sourceIdx, destIdx, startTime, optimizeTime, companyFilter);
+        return findPathDijkstra(sourceIdx, destIdx, startTime, optimizeTime, companyFilter, avoidPorts, maxVoyageTime);
     }
     
     Graph()
