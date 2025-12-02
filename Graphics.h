@@ -3,8 +3,19 @@
 #include "Graph.h"
 #include "Vector.h"     
 #include "LinkedList.h" 
+#include <cstdlib>
+#include <ctime>
 
 using namespace sf;
+
+struct Particle {
+    Vector2f position;
+    Vector2f velocity;
+    float size;
+    Color color;
+    float life;
+    int connectionCount;  // Track connections for molecular network
+};
 
 struct RouteAnimation {
     int sourceIdx;
@@ -19,12 +30,11 @@ struct RouteAnimation {
     DateTime time;
 };
 
-// Dijkstra exploration visualization
-struct ExplorationStep {
-    int portIdx;
-    int fromIdx;
-    float timestamp;  // When this exploration happened
-    bool isInPath;    // True if this is part of the final path
+// Ship travel state - tracks which segment ship is on
+struct ShipState {
+    int currentSegmentIndex;  // Which route segment (0, 1, 2...)
+    float segmentProgress;    // 0.0 to 1.0 within current segment
+    bool active;
 };
 
 class Graphics {
@@ -39,25 +49,35 @@ private:
     // Active animations list
     Vector<RouteAnimation> activeAnimations;
     
-    // Ship movement animations along final path
+    // Ship movement with progressive path reveal
     Vector<RouteAnimation> shipAnimations;
+    ShipState shipState;  // Current ship position
     
-    // Dijkstra exploration visualization
-    Vector<ExplorationStep> explorationHistory;
-    float explorationTime;
-    bool isExploring;
-    Vector<int> finalPathPorts;  // Ports in the final solution path
+    // Particles for menu and effects
+    Vector<Particle> particles;
+    Clock particleClock;
     
     // Path visualization
     LinkedList<Route> currentPath;
     Color pathColor;
     bool pathVisible;
+    
+    // Rendered path segments (only show where ship has traveled)
+    Vector<int> completedSegments;  // Track which segments to draw
 
     // Internal Helper Functions
     Vector2f getRelativeCoordinates(string cityName);
     float getDistance(Vector2f p1, Vector2f p2);
     float distToSegment(Vector2f p, Vector2f v, Vector2f w);
     Color getCompanyColor(const string& company);
+    
+    // Particle management
+    void initParticles(int count);
+    void updateParticles(float dt);
+    void drawParticles();
+    
+    // Layered text rendering
+    void drawTextLayered(const string& str, Vector2f pos, int size, Color mainColor, bool centered = false);
 
 public:
     Graphics(RenderWindow& win, Graph& graph);
@@ -67,6 +87,16 @@ public:
 
     // Main Draw Loop - enhanced with source/dest highlighting
     void drawWorld(Graph& graph, int selectedPortIndex, bool showAllRoutes, int sourceIdx = -1, int destIdx = -1);
+    
+    // Draw main menu screen
+    void drawMainMenu(bool startButtonHovered);
+    
+    // Draw algorithm selection menu with particles
+    void drawAlgorithmMenu(Vector<string>& algorithms, int hoveredIndex);
+    
+    // Draw algorithm options menu
+    void drawAlgorithmOptionsMenu(bool useAvoidPorts, bool useMaxVoyageTime, 
+                                   Vector<string>& avoidPorts, double maxVoyageTime);
 
     // HUD rendering
     void drawHUD(int sourceIdx, int destIdx, PathResult& result, Graph& graph, string state, string algorithm = "Dijkstra");
@@ -83,16 +113,9 @@ public:
     // Clears old animations
     void clearAnimations();
     
-    // Dijkstra visualization
-    void startExploration();
-    void addExplorationStep(int portIdx, int fromIdx);
-    void markFinalPath(int portIdx);
-    void finishExploration();
-    bool isExplorationActive() const { return isExploring; }
-    void setExplorationData(const PathResult& result);  // New: set exploration from PathResult
-    
-    // Ship movement along final path
+    // Ship movement along final path - PROGRESSIVE REVEAL
     void startShipAnimation(const LinkedList<Route>& path, Graph& graph);
+    void setExplorationData(const PathResult& result);
 
     int handleMouseClick(int mouseX, int mouseY);
     void drawPortQueue(Vector2f pos, int count);
