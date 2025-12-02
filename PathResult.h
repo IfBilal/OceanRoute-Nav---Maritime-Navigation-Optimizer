@@ -14,3 +14,11 @@ struct PathResult {
     
     PathResult() : totalCost(0.0), totalTime(0.0), nodesExplored(0), pathFound(false) {}
 };
+
+struct AllPathsResult {
+    Vector<PathResult> allPaths;  // All valid paths found
+    int totalPathsFound;
+    int nodesExplored;
+    
+    AllPathsResult() : totalPathsFound(0), nodesExplored(0) {}
+};

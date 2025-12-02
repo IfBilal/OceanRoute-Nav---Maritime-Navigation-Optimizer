@@ -178,8 +178,121 @@ struct Graph
         }
         file.close();
     }
-    
-    
+
+    void DFSfindPaths(int currentIdx, int destIdx, DateTime availableTime,
+                      Vector<bool> &visited, LinkedList<Route> &currentPath,
+                      AllPathsResult &result, int &nodesVisited, DateTime startTime)
+    {
+        nodesVisited++;
+        
+        if (currentIdx == destIdx)
+        {
+            // Create a PathResult for this complete path
+            PathResult pathResult;
+            pathResult.pathFound = true;
+            pathResult.routes = currentPath;
+            
+            // Calculate total cost and time by traversing the complete path
+            double totalCost = 0.0;
+            double totalTime = 0.0;
+            Node<Route>* routeNode = currentPath.head;
+            DateTime currentTime = startTime;
+            
+            while (routeNode)
+            {
+                Route& route = routeNode->data;
+                
+                // Add voyage cost
+                totalCost += route.voyageCost;
+                
+                // Calculate voyage time
+                double voyageHours = route.departureTime.timeDiff(route.arrivalTime);
+                totalTime += voyageHours;
+                
+                // Calculate wait time at destination port
+                Ship tempShip(route.arrivalTime, route.company,
+                              route.destinationPortName, route.sourcePortName);
+                double waitHours = freeTime(ports[route.destinationIndex], tempShip);
+                totalTime += waitHours;
+                
+                // Add layover charges if wait > 12 hours
+                if (waitHours > 12.0)
+                {
+                    totalCost += ports[route.destinationIndex]->portCharges * (waitHours / 24.0);
+                }
+                
+                // Update current time for next iteration
+                currentTime = route.arrivalTime.addHours(waitHours);
+                routeNode = routeNode->next;
+            }
+            
+            pathResult.totalCost = totalCost;
+            pathResult.totalTime = totalTime;
+            result.allPaths.push_back(pathResult);
+            result.totalPathsFound++;
+            return;
+        }
+        
+        Node<Route> *routeNode = ports[currentIdx]->routes.head;
+        while (routeNode)
+        {
+            Route &currRoute = routeNode->data;
+            int nextIdx = currRoute.destinationIndex;
+            if (!visited[nextIdx])
+            {
+                if (currRoute.departureTime < availableTime)
+                {
+                    routeNode = routeNode->next;
+                    continue;
+                }
+
+                Ship tempShip(currRoute.arrivalTime, currRoute.company,
+                              currRoute.destinationPortName, currRoute.sourcePortName);
+                double waitDock = freeTime(ports[nextIdx], tempShip);
+                DateTime nextAvailable = currRoute.arrivalTime.addHours(waitDock);
+
+                visited[nextIdx] = true;
+                currentPath.insertAtEnd(currRoute);
+                DFSfindPaths(nextIdx, destIdx, nextAvailable, visited, currentPath, result, nodesVisited, startTime);
+                visited[nextIdx] = false;
+                currentPath.popAtEnd();
+            }
+
+            routeNode = routeNode->next;
+        }
+    }
+
+    AllPathsResult findAllPaths(string source, string destination, DateTime start)
+    {
+        int srcIdx = findPortIndex(source);
+        int destIdx = findPortIndex(destination);
+        AllPathsResult result;
+        
+        if (srcIdx == -1 || destIdx == -1)
+        {
+            return result;
+        }
+        
+        // Same source and destination - no valid path
+        if (srcIdx == destIdx)
+        {
+            return result;
+        }
+
+        Vector<bool> visited(ports.getSize());
+        for (int i = 0; i < ports.getSize(); i++)
+        {
+            visited.push_back(false);
+        }
+        LinkedList<Route> currentPath;
+        int nodesVisited = 0;
+
+        DFSfindPaths(srcIdx, destIdx, start, visited, currentPath, result, nodesVisited, start);
+        result.nodesExplored = nodesVisited;
+
+        return result;
+    }
+
     // Dijkstra's algorithm for shortest path
     // optimizeTime: true = minimize time, false = minimize cost
     // companyFilter: empty string = all companies, otherwise only use routes from this company
