@@ -1,0 +1,8 @@
+
+COMPILATION & EXECUTION:
+------------------------
+
+Run the following command in the project directory:
+
+g++ main.cpp Graphics.cpp InteractivePathChain.cpp -o run -lsfml-graphics -lsfml-window -lsfml-system -lsfml-audio -O3 && ./run
+

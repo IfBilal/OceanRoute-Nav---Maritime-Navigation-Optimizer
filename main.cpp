@@ -4,11 +4,12 @@
 #include <sstream>
 #include "Graph.h"
 #include "Graphics.h"
+#include "InteractivePathChain.h"
 
 using namespace std;
 using namespace sf;
 
-enum AppState { MAIN_MENU, SELECTING_PATHFINDING_ALGO, SELECTING_ALGO_OPTIONS, INPUTTING_AVOID_PORTS, INPUTTING_MAX_VOYAGE_TIME, IDLE, INPUTTING_SOURCE, INPUTTING_DEST, INPUTTING_DEPARTURE_DATE, SELECTING_MODE, SELECTING_COMPANY, SELECTING_ALGORITHM, READY_TO_COMPUTE, COMPUTING, SHOWING_PATH };
+enum AppState { MAIN_MENU, SELECTING_PATHFINDING_ALGO, SELECTING_ALGO_OPTIONS, INPUTTING_AVOID_PORTS, INPUTTING_MAX_VOYAGE_TIME, IDLE, INPUTTING_SOURCE, INPUTTING_DEST, INPUTTING_DEPARTURE_DATE, SELECTING_MODE, SELECTING_COMPANY, SELECTING_ALGORITHM, READY_TO_COMPUTE, COMPUTING, SHOWING_PATH, VIEWING_INTERACTIVE_CHAIN };
 
 string stateToString(AppState state) {
     switch(state) {
@@ -27,6 +28,7 @@ string stateToString(AppState state) {
         case READY_TO_COMPUTE: return "READY TO COMPUTE";
         case COMPUTING: return "COMPUTING...";
         case SHOWING_PATH: return "PATH FOUND";
+        case VIEWING_INTERACTIVE_CHAIN: return "INTERACTIVE CHAIN";
         default: return "UNKNOWN";
     }
 }
@@ -277,6 +279,9 @@ int main() {
     AllPathsResult allPathsResult;  // For DFS results
     int selectedPathIndex = 0;  // Which path to display from allPathsResult
     DateTime startTime(2024, 12, 1, 8, 0);  // Will be set by user input
+    
+    // Interactive Path Chain for multi-leg route visualization
+    InteractivePathChain interactiveChain;
     bool showAllRoutes = false; 
     string stateString = "MAIN MENU";
     
@@ -380,7 +385,99 @@ int main() {
             if (event.type == Event::Closed) window.close();
             
             if (event.type == Event::KeyPressed) {
-                if (event.key.code == Keyboard::Escape) window.close();
+                // ESC key handling - Smart back navigation
+                if (event.key.code == Keyboard::Escape) {
+                    bool handled = false;
+                    
+                    // State-specific back navigation
+                    switch (currentState) {
+                        case MAIN_MENU:
+                            // Only close app from main menu
+                            window.close();
+                            handled = true;
+                            break;
+                            
+                        case VIEWING_INTERACTIVE_CHAIN:
+                        {
+                            // Return to path view with modified path
+                            currentState = SHOWING_PATH;
+                            stateString = stateToString(currentState);
+                            PathResult chainResult = interactiveChain.getCurrentResult();
+                            string costStr = "$" + to_string((int)chainResult.totalCost);
+                            string timeStr = to_string((int)chainResult.totalTime) + "h";
+                            instructions.setString("PATH FOUND! Cost: " + costStr + " | Time: " + timeStr + " | [M]Multi-Leg View [F5]Reset");
+                            textBounds = instructions.getLocalBounds();
+                            instructions.setOrigin(textBounds.width / 2.0f, 0);
+                            pathResult = chainResult;
+                            cout << "\n>>> Returned to Path View" << endl;
+                            handled = true;
+                            break;
+                        }
+                            
+                        case SHOWING_PATH:
+                            // Go back to main menu
+                            currentState = MAIN_MENU;
+                            stateString = stateToString(currentState);
+                            instructions.setString("Main Menu | Select Algorithm");
+                            textBounds = instructions.getLocalBounds();
+                            instructions.setOrigin(textBounds.width / 2.0f, 0);
+                            renderer.clearAnimations();
+                            cout << "\n>>> Returned to Main Menu" << endl;
+                            handled = true;
+                            break;
+                            
+                        case INPUTTING_SOURCE:
+                        case INPUTTING_DEST:
+                        case INPUTTING_DEPARTURE_DATE:
+                        case INPUTTING_AVOID_PORTS:
+                        case INPUTTING_MAX_VOYAGE_TIME:
+                        case SELECTING_MODE:
+                        case SELECTING_COMPANY:
+                        case SELECTING_ALGORITHM:
+                        case SELECTING_ALGO_OPTIONS:
+                        case READY_TO_COMPUTE:
+                        case COMPUTING:
+                            // Go back to main menu from any input/selection state
+                            currentState = MAIN_MENU;
+                            stateString = stateToString(currentState);
+                            instructions.setString("Main Menu | Select Algorithm");
+                            textBounds = instructions.getLocalBounds();
+                            instructions.setOrigin(textBounds.width / 2.0f, 0);
+                            sourceInput = "";
+                            destInput = "";
+                            departureDateInput = "";
+                            avoidPortsInput.clear();
+                            avoidPortsStr = "";
+                            maxVoyageTimeStr = "";
+                            sourceText.setString("");
+                            destText.setString("");
+                            dateText.setString("");
+                            cout << "\n>>> CANCELLED - Returned to Main Menu" << endl;
+                            handled = true;
+                            break;
+                            
+                        case SELECTING_PATHFINDING_ALGO:
+                            // Go back to main menu
+                            currentState = MAIN_MENU;
+                            stateString = stateToString(currentState);
+                            instructions.setString("Main Menu | Select Algorithm");
+                            textBounds = instructions.getLocalBounds();
+                            instructions.setOrigin(textBounds.width / 2.0f, 0);
+                            cout << "\n>>> Returned to Main Menu" << endl;
+                            handled = true;
+                            break;
+                    }
+                    
+                    if (!handled) {
+                        // Fallback - go to main menu
+                        currentState = MAIN_MENU;
+                        stateString = stateToString(currentState);
+                        instructions.setString("Main Menu | Select Algorithm");
+                        textBounds = instructions.getLocalBounds();
+                        instructions.setOrigin(textBounds.width / 2.0f, 0);
+                        cout << "\n>>> Returned to Main Menu" << endl;
+                    }
+                }
                 
                 // Toggle showing all routes with 'T' key - ONLY when NOT typing
                 if (event.key.code == Keyboard::T && 
@@ -811,13 +908,22 @@ int main() {
                                 instructions.setString("PATH " + to_string(selectedPathIndex + 1) + "/" + to_string(allPathsResult.totalPathsFound) + 
                                                      " | Cost: " + costStr + " | Time: " + timeStr + " | [LEFT/RIGHT]Switch [F5]Reset");
                             } else {
-                                instructions.setString("PATH FOUND! Cost: " + costStr + " | Time: " + timeStr + " | [F5]Reset");
+                                // Dijkstra/A* - show interactive chain option
+                                instructions.setString("PATH FOUND! Cost: " + costStr + " | Time: " + timeStr + " | [M]Multi-Leg View [F5]Reset");
                             }
                             textBounds = instructions.getLocalBounds();
                             instructions.setOrigin(textBounds.width / 2.0f, 0);
                             
                             // Start ship animation along the path
                             renderer.startShipAnimation(pathResult.routes, oceanGraph);
+                            
+                            // Build interactive path chain (only for Dijkstra and A*, not DFS)
+                            if (selectedAlgoIndex != 2) {  // Not DFS
+                                interactiveChain.buildFromResult(pathResult, selectedAlgorithmName,
+                                                                sourcePort, destPort, startTime,
+                                                                optimizeTime, selectedCompany, 
+                                                                maxVoyageTime, oceanGraph);
+                            }
                             
                             cout << "\n[OK] =============== PATH FOUND =============== [OK]" << endl;
                             if (selectedAlgoIndex == 2) {
@@ -1068,6 +1174,22 @@ int main() {
                     }
                 }
                 
+                // Handle 'M' key to toggle Multi-Leg Interactive View (Dijkstra/A* only)
+                // REMOVED: M key should NOT toggle back - use ESC to exit instead
+                if (event.key.code == Keyboard::M) {
+                    if (currentState == SHOWING_PATH && selectedAlgoIndex != 2) {
+                        // Switch to interactive chain view
+                        currentState = VIEWING_INTERACTIVE_CHAIN;
+                        stateString = stateToString(currentState);
+                        instructions.setString("MULTI-LEG ROUTE EDITOR | Click nodes to modify | [ESC]Back to Path View");
+                        textBounds = instructions.getLocalBounds();
+                        instructions.setOrigin(textBounds.width / 2.0f, 0);
+                        cout << "\n>>> Entered Multi-Leg Interactive Chain View" << endl;
+                        cout << "Click on nodes to delete or add waypoints" << endl;
+                    }
+                    // Don't toggle back with M - let ESC handle returning to path view
+                }
+                
                 // Handle arrow keys for DFS path switching
                 if (currentState == SHOWING_PATH && selectedAlgoIndex == 2 && allPathsResult.totalPathsFound > 1) {
                     if (event.key.code == Keyboard::Left) {
@@ -1121,8 +1243,24 @@ int main() {
             
             // Handle text input
             if (event.type == Event::TextEntered) {
+                // Interactive chain text input (when in add mode)
+                if (currentState == VIEWING_INTERACTIVE_CHAIN && selectedAlgoIndex != 2 && interactiveChain.isAddModeActive()) {
+                    if (event.text.unicode == 13) {
+                        // ENTER - submit port name
+                        interactiveChain.handleEnter(oceanGraph);
+                    } else if (event.text.unicode == 27) {
+                        // ESC - cancel add mode
+                        interactiveChain.cancelAddMode();
+                    } else if (event.text.unicode == 8) {
+                        // Backspace
+                        interactiveChain.handleTextInput(8);
+                    } else if (event.text.unicode < 128) {
+                        // Regular character
+                        interactiveChain.handleTextInput(static_cast<char>(event.text.unicode));
+                    }
+                }
                 // Skip Enter key (13) - handled separately in KeyPressed
-                if (event.text.unicode == 13) {
+                else if (event.text.unicode == 13) {
                     // Skip - ENTER is handled in KeyPressed event
                 }
                 // Handle Backspace (8)
@@ -1293,7 +1431,19 @@ int main() {
                         }
                     }
                     
-                    // Handle port clicks
+                    // Handle interactive chain clicks FIRST (VIEWING_INTERACTIVE_CHAIN state only)
+                    if (currentState == VIEWING_INTERACTIVE_CHAIN && selectedAlgoIndex != 2) {
+                        Vector2f mousePos(event.mouseButton.x, event.mouseButton.y);
+                        
+                        // Always check chain area first - bottom 30% of screen (y >= 630)
+                        if (mousePos.y >= 630) {
+                            interactiveChain.handleClick(mousePos, oceanGraph);
+                            // ALWAYS skip other click handling when clicking in chain area
+                            continue;
+                        }
+                    }
+                    
+                    // Handle port clicks (only if NOT in chain area)
                     int clickedIndex = renderer.handleMouseClick(event.mouseButton.x, event.mouseButton.y);
                     
                     if (clickedIndex != -1) {
@@ -1510,7 +1660,14 @@ int main() {
         
         // Draw computed path if found
         if (pathResult.pathFound) {
-            renderer.drawPath(pathResult.routes, oceanGraph);
+            // If in interactive chain view, ONLY draw the modified path from the chain
+            if (currentState == VIEWING_INTERACTIVE_CHAIN && selectedAlgoIndex != 2) {
+                PathResult chainResult = interactiveChain.getCurrentResult();
+                renderer.drawPath(chainResult.routes, oceanGraph);
+            } else {
+                // Normal path view - draw original path
+                renderer.drawPath(pathResult.routes, oceanGraph);
+            }
         }
         
         // Draw text input boxes
@@ -1619,6 +1776,11 @@ int main() {
         if (showWarning) {
             window.draw(warningBg);
             window.draw(warningText);
+        }
+        
+        // Draw interactive path chain (VIEWING_INTERACTIVE_CHAIN state only)
+        if (currentState == VIEWING_INTERACTIVE_CHAIN && selectedAlgoIndex != 2) {
+            interactiveChain.render(window, font);
         }
         
         window.draw(instructions);
