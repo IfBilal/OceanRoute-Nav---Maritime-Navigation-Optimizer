@@ -435,13 +435,14 @@ struct Graph
 
             int currentPort = current.portIndex;
 
-            // Skip if already visited
-            if (visited[currentPort])
+            // Skip if already visited (only for cost optimization)
+            if (!optimizeTime && visited[currentPort])
             {
                 continue;
             }
 
-            visited[currentPort] = true;
+            if (!optimizeTime)
+                visited[currentPort] = true;
             result.nodesExplored++;
 
             // Record exploration order for visualization
@@ -469,8 +470,8 @@ struct Graph
                 Route &route = routeNode->data;
                 int nextPort = route.destinationIndex;
 
-                // Skip if already visited
-                if (visited[nextPort])
+                // Skip if already visited (only for cost optimization)
+                if (!optimizeTime && visited[nextPort])
                 {
                     routeNode = routeNode->next;
                     continue;
@@ -706,13 +707,14 @@ struct Graph
 
             int currentPort = current.portIndex;
 
-            // Skip if already visited
-            if (visited[currentPort])
+            // Skip if already visited (only for cost optimization)
+            if (!optimizeTime && visited[currentPort])
             {
                 continue;
             }
 
-            visited[currentPort] = true;
+            if (!optimizeTime)
+                visited[currentPort] = true;
             result.nodesExplored++;
 
             // Record exploration order for visualization
@@ -742,7 +744,7 @@ struct Graph
                 int nextPort = route.destinationIndex;
 
                 // Skip if already visited
-                if (visited[nextPort])
+                if (!optimizeTime && visited[nextPort])
                 {
                     routeNode = routeNode->next;
                     continue;
