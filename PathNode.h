@@ -8,10 +8,10 @@ struct PathNode {
     PathNode(double c, int idx) : cost(c), portIndex(idx) {}
     
     bool operator<(const PathNode& other) const {
-        return cost > other.cost;
+        return cost < other.cost;
     }
     
     bool operator>(const PathNode& other) const {
-        return cost < other.cost;
+        return cost > other.cost;
     }
 };

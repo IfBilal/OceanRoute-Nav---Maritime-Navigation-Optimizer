@@ -28,6 +28,7 @@ struct RouteAnimation {
     string company;
     double cost;
     DateTime time;
+    DateTime arrivalTime;  // Arrival time at destination
 };
 
 // Ship travel state - tracks which segment ship is on
@@ -43,8 +44,6 @@ private:
     Texture mapTexture;
     Sprite mapSprite;
     Font font;
-
-    Vector<Vector2f> portScreenPositions; 
     
     // Active animations list
     Vector<RouteAnimation> activeAnimations;
@@ -68,7 +67,6 @@ private:
     // Internal Helper Functions
     Vector2f getRelativeCoordinates(string cityName);
     float getDistance(Vector2f p1, Vector2f p2);
-    float distToSegment(Vector2f p, Vector2f v, Vector2f w);
     Color getCompanyColor(const string& company);
     
     // Particle management
@@ -80,6 +78,10 @@ private:
     void drawTextLayered(const string& str, Vector2f pos, int size, Color mainColor, bool centered = false);
 
 public:
+    // Public for hover detection
+    Vector<Vector2f> portScreenPositions;
+    float distToSegment(Vector2f p, Vector2f v, Vector2f w);
+    
     Graphics(RenderWindow& win, Graph& graph);
 
     // Call this every frame to update animation progress
@@ -100,6 +102,9 @@ public:
 
     // HUD rendering
     void drawHUD(int sourceIdx, int destIdx, PathResult& result, Graph& graph, string state, string algorithm = "Dijkstra");
+    
+    // Traversal HUD - shows layover and route info during ship animation
+    void drawTraversalHUD(Graph& graph, PathResult& pathResult);
 
     // Trigger an animation (e.g., when clicking a port)
     void startRouteAnimation(int startIdx, int endIdx, Route& data);
@@ -116,6 +121,18 @@ public:
     // Ship movement along final path - PROGRESSIVE REVEAL
     void startShipAnimation(const LinkedList<Route>& path, Graph& graph);
     void setExplorationData(const PathResult& result);
+
+    // Graph analysis view with filters
+    void drawGraphAnalysis(Graph& graph, bool showFilterPanel, 
+                          Vector<string>& continentFilters, Vector<bool>& continentActive,
+                          Vector<string>& companyFilters, Vector<bool>& companyActive,
+                          int hoveredPortIdx, int hoveredRouteSourceIdx, int hoveredRouteDestIdx,
+                          Route& hoveredRoute);
+    void drawFilterPanel(Vector<string>& continentFilters, Vector<bool>& continentActive,
+                        Vector<string>& companyFilters, Vector<bool>& companyActive);
+    void drawFilterButton(bool panelOpen);
+    void drawPortTooltip(Port* port, Vector2f pos, Graph& graph);
+    void drawRouteTooltip(Route& route, Vector2f mousePos, string sourceName, string destName);
 
     int handleMouseClick(int mouseX, int mouseY);
     void drawPortQueue(Vector2f pos, int count);

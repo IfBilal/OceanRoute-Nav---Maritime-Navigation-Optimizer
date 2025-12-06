@@ -293,6 +293,7 @@ void Graphics::startRouteAnimation(int startIdx, int endIdx, Route& data) {
     anim.company = data.company;
     anim.cost = data.voyageCost;
     anim.time = data.departureTime;
+    anim.arrivalTime = data.arrivalTime;
 
     activeAnimations.push_back(anim);
 }
@@ -915,8 +916,8 @@ void Graphics::drawMainMenu(bool startButtonHovered) {
     
     // Algorithm buttons with cyberpunk style
     Vector<string> algoNames;
-    algoNames.push_back("DIJKSTRA");
-    algoNames.push_back("A* (A-STAR)");
+    algoNames.push_back("BOOK ROUTES");
+    algoNames.push_back("GRAPH ANALYSIS");
     algoNames.push_back("DFS (ALL PATHS)");
     
     float buttonY = 340;
@@ -1339,6 +1340,265 @@ void Graphics::drawHUD(int sourceIdx, int destIdx, PathResult& result, Graph& gr
     }
 }
 
+void Graphics::drawTraversalHUD(Graph& graph, PathResult& pathResult) {
+    // Only show if ship is actively traversing
+    if (!shipState.active || shipAnimations.empty()) return;
+    
+    int currentSeg = shipState.currentSegmentIndex;
+    if (currentSeg < 0 || currentSeg >= shipAnimations.getSize()) return;
+    
+    RouteAnimation& currentRoute = shipAnimations[currentSeg];
+    
+    // Get the actual route from pathResult
+    Node<Route>* routeNode = pathResult.routes.head;
+    int segmentCount = 0;
+    Route* actualRoute = nullptr;
+    
+    while (routeNode != nullptr) {
+        if (segmentCount == currentSeg) {
+            actualRoute = &routeNode->data;
+            break;
+        }
+        segmentCount++;
+        routeNode = routeNode->next;
+    }
+    
+    if (actualRoute == nullptr) return;  // Safety check
+    
+    // Get port info
+    int sourceIdx = currentRoute.sourceIdx;
+    int destIdx = currentRoute.destIdx;
+    
+    if (sourceIdx < 0 || sourceIdx >= graph.ports.getSize() || 
+        destIdx < 0 || destIdx >= graph.ports.getSize()) return;
+    
+    Port* sourcePort = graph.ports[sourceIdx];
+    Port* destPort = graph.ports[destIdx];
+    
+    // HUD Panel - Top Right Corner
+    float hudWidth = 380;
+    float hudHeight = 260;
+    float hudX = 1600 - hudWidth - 20;
+    float hudY = 20;
+    
+    // Main panel background with gradient effect
+    RectangleShape hudBg(Vector2f(hudWidth, hudHeight));
+    hudBg.setPosition(hudX, hudY);
+    hudBg.setFillColor(Color(10, 15, 30, 240));
+    hudBg.setOutlineColor(Color(0, 200, 255));
+    hudBg.setOutlineThickness(2);
+    window.draw(hudBg);
+    
+    // Corner accents
+    for (int i = 0; i < 4; i++) {
+        float cx = (i % 2 == 0) ? hudX : hudX + hudWidth;
+        float cy = (i < 2) ? hudY : hudY + hudHeight;
+        
+        RectangleShape corner1(Vector2f(20, 2));
+        corner1.setPosition(cx + (i % 2 == 0 ? 2 : -22), cy + (i < 2 ? 2 : -2));
+        corner1.setFillColor(Color(0, 200, 255));
+        window.draw(corner1);
+        
+        RectangleShape corner2(Vector2f(2, 20));
+        corner2.setPosition(cx + (i % 2 == 0 ? 2 : -2), cy + (i < 2 ? 2 : -22));
+        corner2.setFillColor(Color(0, 200, 255));
+        window.draw(corner2);
+    }
+    
+    float contentX = hudX + 15;
+    float contentY = hudY + 15;
+    
+    // Title with animation
+    static Clock titleClock;
+    float titleTime = titleClock.getElapsedTime().asSeconds();
+    int titleAlpha = 200 + 55 * sin(titleTime * 2.0f);
+    
+    Text title("⚓ ROUTE TRAVERSAL", font, 16);
+    title.setPosition(contentX, contentY);
+    title.setFillColor(Color(0, 200, 255, titleAlpha));
+    title.setStyle(Text::Bold);
+    window.draw(title);
+    
+    // Progress indicator
+    float progressBarWidth = hudWidth - 30;
+    float progress = shipState.segmentProgress;
+    
+    RectangleShape progressBg(Vector2f(progressBarWidth, 8));
+    progressBg.setPosition(contentX, contentY + 25);
+    progressBg.setFillColor(Color(30, 30, 50, 200));
+    progressBg.setOutlineColor(Color(80, 80, 100));
+    progressBg.setOutlineThickness(1);
+    window.draw(progressBg);
+    
+    RectangleShape progressFill(Vector2f(progressBarWidth * progress, 8));
+    progressFill.setPosition(contentX, contentY + 25);
+    progressFill.setFillColor(Color(0, 255, 150));
+    window.draw(progressFill);
+    
+    // Segment counter
+    Text segmentCounter("Leg " + to_string(currentSeg + 1) + "/" + to_string(shipAnimations.getSize()), font, 12);
+    segmentCounter.setPosition(contentX + progressBarWidth - 60, contentY + 28);
+    segmentCounter.setFillColor(Color(255, 255, 255));
+    segmentCounter.setStyle(Text::Bold);
+    window.draw(segmentCounter);
+    
+    contentY += 45;
+    
+    // Current Route Section Header
+    RectangleShape sectionHeader(Vector2f(hudWidth - 30, 22));
+    sectionHeader.setPosition(contentX, contentY);
+    sectionHeader.setFillColor(Color(0, 100, 150, 150));
+    window.draw(sectionHeader);
+    
+    Text sectionTitle("CURRENT VOYAGE", font, 12);
+    sectionTitle.setPosition(contentX + 5, contentY + 4);
+    sectionTitle.setFillColor(Color(255, 255, 255));
+    sectionTitle.setStyle(Text::Bold);
+    window.draw(sectionTitle);
+    
+    contentY += 28;
+    
+    // Route: Source → Destination
+    Text routeLabel("Route:", font, 11);
+    routeLabel.setPosition(contentX, contentY);
+    routeLabel.setFillColor(Color(180, 180, 180));
+    window.draw(routeLabel);
+    
+    Text routeText(sourcePort->name + " → " + destPort->name, font, 12);
+    routeText.setPosition(contentX + 50, contentY - 1);
+    routeText.setFillColor(Color(0, 255, 150));
+    routeText.setStyle(Text::Bold);
+    window.draw(routeText);
+    
+    contentY += 22;
+    
+    // Company
+    Text companyLabel("Company:", font, 11);
+    companyLabel.setPosition(contentX, contentY);
+    companyLabel.setFillColor(Color(180, 180, 180));
+    window.draw(companyLabel);
+    
+    Text companyText(currentRoute.company, font, 11);
+    companyText.setPosition(contentX + 75, contentY);
+    companyText.setFillColor(Color(255, 215, 0));
+    window.draw(companyText);
+    
+    contentY += 22;
+    
+    // Departure Time
+    Text depLabel("Depart:", font, 11);
+    depLabel.setPosition(contentX, contentY);
+    depLabel.setFillColor(Color(180, 180, 180));
+    window.draw(depLabel);
+    
+    string depTime = to_string(currentRoute.time.day) + "/" + 
+                    to_string(currentRoute.time.month) + "/" + 
+                    to_string(currentRoute.time.year) + " " +
+                    to_string(currentRoute.time.hour) + ":" + 
+                    (currentRoute.time.minute < 10 ? "0" : "") + to_string(currentRoute.time.minute);
+    
+    Text depText(depTime, font, 11);
+    depText.setPosition(contentX + 75, contentY);
+    depText.setFillColor(Color(100, 255, 100));
+    window.draw(depText);
+    
+    contentY += 22;
+    
+    // Calculate arrival time (need to get it from shipAnimations route data)
+    // For now, show voyage cost
+    Text costLabel("Cost:", font, 11);
+    costLabel.setPosition(contentX, contentY);
+    costLabel.setFillColor(Color(180, 180, 180));
+    window.draw(costLabel);
+    
+    Text costText("$" + to_string((int)currentRoute.cost), font, 11);
+    costText.setPosition(contentX + 75, contentY);
+    costText.setFillColor(Color(255, 200, 0));
+    costText.setStyle(Text::Bold);
+    window.draw(costText);
+    
+    contentY += 28;
+    
+    // Layover Information Section
+    RectangleShape layoverHeader(Vector2f(hudWidth - 30, 22));
+    layoverHeader.setPosition(contentX, contentY);
+    layoverHeader.setFillColor(Color(100, 50, 0, 150));
+    window.draw(layoverHeader);
+    
+    Text layoverTitle("DOCKING & PORT INFO", font, 12);
+    layoverTitle.setPosition(contentX + 5, contentY + 4);
+    layoverTitle.setFillColor(Color(255, 255, 255));
+    layoverTitle.setStyle(Text::Bold);
+    window.draw(layoverTitle);
+    
+    contentY += 28;
+    
+    // Use the backend freeTime function with actual route data from PathResult
+    Ship currentShip;
+    currentShip.arrivalTime = actualRoute->arrivalTime;
+    currentShip.companyName = actualRoute->company;
+    currentShip.destinationPort = actualRoute->destinationPortName;
+    currentShip.sourcePort = actualRoute->sourcePortName;
+    
+    // freeTime calculates when this ship can leave (wait + 2h docking)
+    double dockingTime = graph.freeTime(destPort, currentShip);
+    
+    Text dockingLabel("Docking Time:", font, 11);
+    dockingLabel.setPosition(contentX, contentY);
+    dockingLabel.setFillColor(Color(180, 180, 180));
+    window.draw(dockingLabel);
+    
+    // Convert to hours and minutes
+    int hours = (int)dockingTime;
+    int minutes = (int)((dockingTime - hours) * 60);
+    string timeStr = to_string(hours) + "h " + to_string(minutes) + "m";
+    
+    Text dockingText(timeStr, font, 11);
+    dockingText.setPosition(contentX + 95, contentY);
+    dockingText.setFillColor((dockingTime > 12.0) ? Color(255, 150, 0) : Color(0, 255, 100));
+    window.draw(dockingText);
+    
+    contentY += 22;
+    
+    // Port charges at destination - ONLY if docking time > 12 hours
+    if (dockingTime > 12.0) {
+        Text chargesLabel("Port Fee:", font, 11);
+        chargesLabel.setPosition(contentX, contentY);
+        chargesLabel.setFillColor(Color(180, 180, 180));
+        window.draw(chargesLabel);
+        
+        // Calculate layover fee based on docking time (same as backend logic)
+        double layoverFee = destPort->portCharges * (dockingTime / 24.0);
+        
+        Text chargesText("$" + to_string((int)layoverFee) + " (" + to_string((int)dockingTime) + "h)", font, 11);
+        chargesText.setPosition(contentX + 95, contentY);
+        chargesText.setFillColor(Color(255, 100, 100));
+        chargesText.setStyle(Text::Bold);
+        window.draw(chargesText);
+    } else {
+        // Show "No fee" when docking time <= 12 hours
+        Text chargesLabel("Port Fee:", font, 11);
+        chargesLabel.setPosition(contentX, contentY);
+        chargesLabel.setFillColor(Color(180, 180, 180));
+        window.draw(chargesLabel);
+        
+        Text chargesText("No fee (<12h)", font, 11);
+        chargesText.setPosition(contentX + 95, contentY);
+        chargesText.setFillColor(Color(0, 200, 100));
+        window.draw(chargesText);
+    }
+    
+    // Add pulsing animation to current segment indicator
+    static Clock pulseClock;
+    float pulseTime = pulseClock.getElapsedTime().asSeconds();
+    int pulseAlpha = 150 + 105 * sin(pulseTime * 4.0f);
+    
+    CircleShape pulseIndicator(8);
+    pulseIndicator.setPosition(contentX - 18, hudY + 15);
+    pulseIndicator.setFillColor(Color(0, 255, 150, pulseAlpha));
+    window.draw(pulseIndicator);
+}
+
 
 void Graphics::setExplorationData(const PathResult& result) {
     // No more exploration history - ship IS the exploration
@@ -1368,6 +1628,7 @@ void Graphics::startShipAnimation(const LinkedList<Route>& path, Graph& graph) {
         ship.company = current->data.company;
         ship.cost = current->data.voyageCost;
         ship.time = current->data.departureTime;
+        ship.arrivalTime = current->data.arrivalTime;
         
         shipAnimations.push_back(ship);
         current = current->next;
@@ -1379,5 +1640,719 @@ void Graphics::startShipAnimation(const LinkedList<Route>& path, Graph& graph) {
         shipState.currentSegmentIndex = 0;
         shipState.segmentProgress = 0.0f;
     }
+}
+
+// Helper to get port continent (forward declaration from main.cpp)
+extern string getPortContinent(const string& portName);
+
+void Graphics::drawGraphAnalysis(Graph& graph, bool showFilterPanel,
+                                 Vector<string>& continentFilters, Vector<bool>& continentActive,
+                                 Vector<string>& companyFilters, Vector<bool>& companyActive,
+                                 int hoveredPortIdx, int hoveredRouteSourceIdx, int hoveredRouteDestIdx,
+                                 Route& hoveredRoute) {
+    // Draw map background
+    window.draw(mapSprite);
+    
+    // Check if any filters are active
+    bool anyContinentActive = false;
+    for (int i = 0; i < continentActive.getSize(); i++) {
+        if (continentActive[i]) {
+            anyContinentActive = true;
+            break;
+        }
+    }
+    
+    bool anyCompanyActive = false;
+    for (int i = 0; i < companyActive.getSize(); i++) {
+        if (companyActive[i]) {
+            anyCompanyActive = true;
+            break;
+        }
+    }
+    
+    bool anyFilterActive = anyContinentActive || anyCompanyActive;
+    
+    // Draw all routes/edges with filtering
+    for (int i = 0; i < graph.ports.getSize(); i++) {
+        Port* source = graph.ports[i];
+        Node<Route>* current = source->routes.head;
+        
+        while (current != nullptr) {
+            Route& route = current->data;
+            int destIdx = graph.findPortIndex(route.destinationPortName);
+            
+            if (destIdx != -1) {
+                Vector2f sourcePos = portScreenPositions[i];
+                Vector2f destPos = portScreenPositions[destIdx];
+                
+                Color routeColor;
+                
+                if (!anyFilterActive) {
+                    // No filters active - show normal routes
+                    routeColor = getCompanyColor(route.company);
+                    routeColor.a = 120;  // Semi-transparent
+                } else {
+                    // Filters active - apply filtering logic
+                    // Check company filter
+                    bool companyMatch = !anyCompanyActive;
+                    if (anyCompanyActive) {
+                        for (int c = 0; c < companyFilters.getSize(); c++) {
+                            if (companyActive[c] && route.company == companyFilters[c]) {
+                                companyMatch = true;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    // Check continent filter
+                    bool continentMatch = !anyContinentActive;
+                    if (anyContinentActive) {
+                        string sourceCont = getPortContinent(source->name);
+                        string destCont = getPortContinent(route.destinationPortName);
+                        
+                        for (int c = 0; c < continentFilters.getSize(); c++) {
+                            if (continentActive[c] && 
+                                (sourceCont == continentFilters[c] || destCont == continentFilters[c])) {
+                                continentMatch = true;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    // Apply colors based on match
+                    if (companyMatch && continentMatch) {
+                        routeColor = Color(255, 215, 0, 200);  // Golden glow
+                    } else {
+                        routeColor = Color(100, 100, 100, 50);  // Faded
+                    }
+                }
+                
+                // Draw route line
+                Vertex line[] = {
+                    Vertex(sourcePos, routeColor),
+                    Vertex(destPos, routeColor)
+                };
+                window.draw(line, 2, Lines);
+            }
+            
+            current = current->next;
+        }
+    }
+    
+    // Draw ports with filtering
+    for (int i = 0; i < graph.ports.getSize(); i++) {
+        Port* port = graph.ports[i];
+        Vector2f pos = portScreenPositions[i];
+        bool isHovered = (i == hoveredPortIdx);
+        
+        if (!anyFilterActive) {
+            // No filters active - show normal ports
+            CircleShape portCircle(isHovered ? 8.0f : 6.0f);
+            portCircle.setOrigin(isHovered ? 8.0f : 6.0f, isHovered ? 8.0f : 6.0f);
+            portCircle.setPosition(pos);
+            portCircle.setFillColor(Color(0, 200, 255, 200));
+            portCircle.setOutlineColor(Color(0, 255, 255, 255));
+            portCircle.setOutlineThickness(isHovered ? 2 : 1);
+            
+            // Glow effect when hovered
+            if (isHovered) {
+                for (int g = 1; g <= 3; g++) {
+                    CircleShape glow(8.0f + g * 3);
+                    glow.setOrigin(8.0f + g * 3, 8.0f + g * 3);
+                    glow.setPosition(pos);
+                    glow.setFillColor(Color(0, 200, 255, 60 / g));
+                    window.draw(glow);
+                }
+            }
+            
+            window.draw(portCircle);
+            
+            // Only show name when hovered
+            if (isHovered) {
+                drawPortTooltip(port, pos, graph);
+            }
+        } else {
+            // Filters active - apply filtering
+            bool portMatch = !anyContinentActive;
+            if (anyContinentActive) {
+                string portCont = getPortContinent(port->name);
+                for (int c = 0; c < continentFilters.getSize(); c++) {
+                    if (continentActive[c] && portCont == continentFilters[c]) {
+                        portMatch = true;
+                        break;
+                    }
+                }
+            }
+            
+            // Draw port circle
+            float radius = portMatch ? 8.0f : 5.0f;
+            if (isHovered) radius += 2.0f;
+            
+            CircleShape portCircle(radius);
+            portCircle.setOrigin(radius, radius);
+            portCircle.setPosition(pos);
+            
+            if (portMatch) {
+                // Golden glow for filtered ports
+                portCircle.setFillColor(Color(255, 215, 0, 220));
+                portCircle.setOutlineColor(Color(255, 223, 0, 255));
+                portCircle.setOutlineThickness(isHovered ? 3 : 2);
+                
+                // Draw glow effect
+                for (int g = 1; g <= 3; g++) {
+                    CircleShape glow(radius + g * 3);
+                    glow.setOrigin(radius + g * 3, radius + g * 3);
+                    glow.setPosition(pos);
+                    glow.setFillColor(Color(255, 215, 0, 60 / g));
+                    window.draw(glow);
+                }
+            } else {
+                // Faded for non-matching ports
+                portCircle.setFillColor(Color(150, 150, 150, 100));
+                portCircle.setOutlineColor(Color(100, 100, 100, 80));
+                portCircle.setOutlineThickness(isHovered ? 2 : 1);
+            }
+            
+            window.draw(portCircle);
+            
+            // Only show tooltip when hovered
+            if (isHovered) {
+                drawPortTooltip(port, pos, graph);
+            }
+        }
+    }
+    
+    // Draw route tooltip if hovering over a route
+    if (hoveredRouteSourceIdx != -1 && hoveredRouteDestIdx != -1) {
+        Vector2i mousePos = Mouse::getPosition(window);
+        string sourceName = graph.ports[hoveredRouteSourceIdx]->name;
+        string destName = graph.ports[hoveredRouteDestIdx]->name;
+        drawRouteTooltip(hoveredRoute, Vector2f(mousePos.x, mousePos.y), sourceName, destName);
+    }
+    
+    // Draw filter button
+    drawFilterButton(showFilterPanel);
+    
+    // Draw filter panel if open
+    if (showFilterPanel) {
+        drawFilterPanel(continentFilters, continentActive, companyFilters, companyActive);
+    }
+    
+    // Draw instructions
+    Text instructions("GRAPH ANALYSIS MODE | Click Filter Button to Toggle Filters | [ESC] Back to Menu", font, 14);
+    FloatRect bounds = instructions.getLocalBounds();
+    instructions.setOrigin(bounds.width / 2, 0);
+    instructions.setPosition(800, 20);
+    instructions.setFillColor(Color(0, 255, 255));
+    window.draw(instructions);
+}
+
+void Graphics::drawFilterButton(bool panelOpen) {
+    // Filter button in bottom left
+    RectangleShape button(Vector2f(120, 40));
+    button.setPosition(20, 820);
+    button.setFillColor(panelOpen ? Color(0, 80, 120, 220) : Color(10, 25, 40, 200));
+    button.setOutlineColor(Color(0, 255, 255));
+    button.setOutlineThickness(2);
+    window.draw(button);
+    
+    Text buttonText("FILTERS", font, 16);
+    buttonText.setPosition(45, 830);
+    buttonText.setFillColor(Color(0, 255, 255));
+    buttonText.setStyle(Text::Bold);
+    window.draw(buttonText);
+}
+
+void Graphics::drawFilterPanel(Vector<string>& continentFilters, Vector<bool>& continentActive,
+                               Vector<string>& companyFilters, Vector<bool>& companyActive) {
+    // Center the panel
+    float panelWidth = 600;
+    float filterHeight = 35;
+    float filterSpacing = 8;
+    float sectionSpacing = 40;
+    
+    // Calculate panel height
+    float panelHeight = 120 + continentFilters.getSize() * (filterHeight + filterSpacing) + 
+                        sectionSpacing + companyFilters.getSize() * (filterHeight + filterSpacing);
+    
+    float panelX = (1600 - panelWidth) / 2;  // Center horizontally
+    float panelY = (900 - panelHeight) / 2;   // Center vertically
+    
+    // Draw molecular network background
+    static float moleculePhase = 0.0f;
+    moleculePhase += 0.01f;
+    
+    // Dark overlay for contrast
+    RectangleShape darkOverlay(Vector2f(1600, 900));
+    darkOverlay.setFillColor(Color(0, 0, 0, 180));
+    window.draw(darkOverlay);
+    
+    // Draw molecular particles
+    for (int i = 0; i < 40; i++) {
+        float angle = (i / 40.0f) * 6.28f + moleculePhase;
+        float radius = 150 + 50 * sin(moleculePhase + i * 0.5f);
+        float x = 800 + cos(angle) * radius;
+        float y = 450 + sin(angle) * radius;
+        
+        CircleShape molecule(3);
+        molecule.setPosition(x, y);
+        molecule.setFillColor(Color(0, 200, 255, 150));
+        window.draw(molecule);
+        
+        // Connect nearby molecules
+        for (int j = i + 1; j < 40; j++) {
+            float angle2 = (j / 40.0f) * 6.28f + moleculePhase;
+            float radius2 = 150 + 50 * sin(moleculePhase + j * 0.5f);
+            float x2 = 800 + cos(angle2) * radius2;
+            float y2 = 450 + sin(angle2) * radius2;
+            
+            float dist = sqrt((x2 - x) * (x2 - x) + (y2 - y) * (y2 - y));
+            if (dist < 100) {
+                Vertex line[] = {
+                    Vertex(Vector2f(x, y), Color(0, 200, 255, 50)),
+                    Vertex(Vector2f(x2, y2), Color(0, 200, 255, 50))
+                };
+                window.draw(line, 2, Lines);
+            }
+        }
+    }
+    
+    // Main panel background with glow
+    for (int glow = 3; glow > 0; glow--) {
+        RectangleShape glowBg(Vector2f(panelWidth + glow * 4, panelHeight + glow * 4));
+        glowBg.setPosition(panelX - glow * 2, panelY - glow * 2);
+        glowBg.setFillColor(Color(0, 150, 200, 30 / glow));
+        window.draw(glowBg);
+    }
+    
+    // Panel background
+    RectangleShape panelBg(Vector2f(panelWidth, panelHeight));
+    panelBg.setPosition(panelX, panelY);
+    panelBg.setFillColor(Color(5, 15, 30, 250));
+    panelBg.setOutlineColor(Color(0, 255, 255, 255));
+    panelBg.setOutlineThickness(3);
+    window.draw(panelBg);
+    
+    // Corner accents
+    float cornerSize = 20;
+    for (int corner = 0; corner < 4; corner++) {
+        float cx = (corner % 2 == 0) ? panelX : panelX + panelWidth;
+        float cy = (corner < 2) ? panelY : panelY + panelHeight;
+        
+        RectangleShape accent1(Vector2f(cornerSize, 3));
+        accent1.setPosition(cx + (corner % 2 == 0 ? 0 : -cornerSize), cy);
+        accent1.setFillColor(Color(0, 255, 255, 255));
+        window.draw(accent1);
+        
+        RectangleShape accent2(Vector2f(3, cornerSize));
+        accent2.setPosition(cx, cy + (corner < 2 ? 0 : -cornerSize));
+        accent2.setFillColor(Color(0, 255, 255, 255));
+        window.draw(accent2);
+    }
+    
+    // Title
+    Text title("FILTER CONFIGURATION", font, 28);
+    FloatRect titleBounds = title.getLocalBounds();
+    title.setOrigin(titleBounds.width / 2, 0);
+    title.setPosition(800, panelY + 20);
+    title.setFillColor(Color(0, 255, 255));
+    title.setStyle(Text::Bold);
+    window.draw(title);
+    
+    // Animated underline
+    RectangleShape underline(Vector2f(titleBounds.width + 40, 2));
+    underline.setPosition(800 - titleBounds.width / 2 - 20, panelY + 55);
+    underline.setFillColor(Color(0, 255, 255, 200));
+    window.draw(underline);
+    
+    float contentY = panelY + 80;
+    
+    // Continent section
+    Text continentTitle("CONTINENT FILTERS", font, 16);
+    continentTitle.setPosition(panelX + 30, contentY);
+    continentTitle.setFillColor(Color(100, 200, 255));
+    continentTitle.setStyle(Text::Bold);
+    window.draw(continentTitle);
+    
+    // Continent filters in 2 columns
+    float col1X = panelX + 30;
+    float col2X = panelX + 320;
+    int filtersPerCol = (continentFilters.getSize() + 1) / 2;
+    
+    for (int i = 0; i < continentFilters.getSize(); i++) {
+        float x = (i < filtersPerCol) ? col1X : col2X;
+        float y = contentY + 35 + (i % filtersPerCol) * (filterHeight + filterSpacing);
+        
+        // Hexagonal-style button
+        RectangleShape filterBox(Vector2f(250, filterHeight));
+        filterBox.setPosition(x, y);
+        
+        if (continentActive[i]) {
+            filterBox.setFillColor(Color(255, 215, 0, 180));
+            filterBox.setOutlineColor(Color(255, 223, 0, 255));
+            filterBox.setOutlineThickness(2);
+            
+            // Glow effect for active
+            RectangleShape glow(Vector2f(254, filterHeight + 4));
+            glow.setPosition(x - 2, y - 2);
+            glow.setFillColor(Color::Transparent);
+            glow.setOutlineColor(Color(255, 215, 0, 100));
+            glow.setOutlineThickness(2);
+            window.draw(glow);
+        } else {
+            filterBox.setFillColor(Color(15, 25, 45, 220));
+            filterBox.setOutlineColor(Color(0, 150, 200, 180));
+            filterBox.setOutlineThickness(1);
+        }
+        
+        window.draw(filterBox);
+        
+        // Side accent
+        RectangleShape accent(Vector2f(3, filterHeight));
+        accent.setPosition(x, y);
+        accent.setFillColor(continentActive[i] ? Color(255, 215, 0) : Color(0, 200, 255, 150));
+        window.draw(accent);
+        
+        // Filter text
+        Text filterText(continentFilters[i], font, 14);
+        filterText.setPosition(x + 15, y + 9);
+        filterText.setFillColor(continentActive[i] ? Color(10, 10, 10) : Color(200, 220, 255));
+        if (continentActive[i]) filterText.setStyle(Text::Bold);
+        window.draw(filterText);
+    }
+    
+    // Company section
+    float companyY = contentY + 35 + filtersPerCol * (filterHeight + filterSpacing) + sectionSpacing;
+    Text companyTitle("SHIPPING COMPANY FILTERS", font, 16);
+    companyTitle.setPosition(panelX + 30, companyY);
+    companyTitle.setFillColor(Color(100, 200, 255));
+    companyTitle.setStyle(Text::Bold);
+    window.draw(companyTitle);
+    
+    // Company filters in 2 columns
+    int companyPerCol = (companyFilters.getSize() + 1) / 2;
+    
+    for (int i = 0; i < companyFilters.getSize(); i++) {
+        float x = (i < companyPerCol) ? col1X : col2X;
+        float y = companyY + 35 + (i % companyPerCol) * (filterHeight + filterSpacing);
+        
+        RectangleShape filterBox(Vector2f(250, filterHeight));
+        filterBox.setPosition(x, y);
+        
+        if (companyActive[i]) {
+            filterBox.setFillColor(Color(255, 215, 0, 180));
+            filterBox.setOutlineColor(Color(255, 223, 0, 255));
+            filterBox.setOutlineThickness(2);
+            
+            RectangleShape glow(Vector2f(254, filterHeight + 4));
+            glow.setPosition(x - 2, y - 2);
+            glow.setFillColor(Color::Transparent);
+            glow.setOutlineColor(Color(255, 215, 0, 100));
+            glow.setOutlineThickness(2);
+            window.draw(glow);
+        } else {
+            filterBox.setFillColor(Color(15, 25, 45, 220));
+            filterBox.setOutlineColor(Color(0, 150, 200, 180));
+            filterBox.setOutlineThickness(1);
+        }
+        
+        window.draw(filterBox);
+        
+        RectangleShape accent(Vector2f(3, filterHeight));
+        accent.setPosition(x, y);
+        accent.setFillColor(companyActive[i] ? Color(255, 215, 0) : Color(0, 200, 255, 150));
+        window.draw(accent);
+        
+        Text filterText(companyFilters[i], font, 14);
+        filterText.setPosition(x + 15, y + 9);
+        filterText.setFillColor(companyActive[i] ? Color(10, 10, 10) : Color(200, 220, 255));
+        if (companyActive[i]) filterText.setStyle(Text::Bold);
+        window.draw(filterText);
+    }
+    
+    // Bottom instructions
+    Text instructions("Click filters to toggle | Multiple selections allowed | [ESC] to close", font, 13);
+    FloatRect instrBounds = instructions.getLocalBounds();
+    instructions.setOrigin(instrBounds.width / 2, 0);
+    instructions.setPosition(800, panelY + panelHeight - 35);
+    instructions.setFillColor(Color(100, 200, 255, 200));
+    window.draw(instructions);
+}
+
+void Graphics::drawPortTooltip(Port* port, Vector2f pos, Graph& graph) {
+    // Tooltip background dimensions
+    float tooltipWidth = 280;
+    float tooltipHeight = 150;
+    float offsetX = 15;
+    float offsetY = -tooltipHeight - 10;
+    
+    // Adjust position to keep tooltip on screen
+    float tooltipX = pos.x + offsetX;
+    float tooltipY = pos.y + offsetY;
+    
+    if (tooltipX + tooltipWidth > 1590) tooltipX = pos.x - tooltipWidth - 15;
+    if (tooltipY < 10) tooltipY = pos.y + 20;
+    
+    // Tooltip background with glow
+    RectangleShape tooltipGlow(Vector2f(tooltipWidth + 6, tooltipHeight + 6));
+    tooltipGlow.setPosition(tooltipX - 3, tooltipY - 3);
+    tooltipGlow.setFillColor(Color(0, 200, 255, 50));
+    window.draw(tooltipGlow);
+    
+    RectangleShape tooltipBg(Vector2f(tooltipWidth, tooltipHeight));
+    tooltipBg.setPosition(tooltipX, tooltipY);
+    tooltipBg.setFillColor(Color(5, 15, 30, 250));
+    tooltipBg.setOutlineColor(Color(0, 255, 255, 255));
+    tooltipBg.setOutlineThickness(2);
+    window.draw(tooltipBg);
+    
+    // Corner accents
+    float cornerSize = 12;
+    for (int corner = 0; corner < 4; corner++) {
+        float cx = (corner % 2 == 0) ? tooltipX : tooltipX + tooltipWidth;
+        float cy = (corner < 2) ? tooltipY : tooltipY + tooltipHeight;
+        
+        RectangleShape accent1(Vector2f(cornerSize, 2));
+        accent1.setPosition(cx + (corner % 2 == 0 ? 0 : -cornerSize), cy);
+        accent1.setFillColor(Color(0, 255, 255));
+        window.draw(accent1);
+        
+        RectangleShape accent2(Vector2f(2, cornerSize));
+        accent2.setPosition(cx, cy + (corner < 2 ? 0 : -cornerSize));
+        accent2.setFillColor(Color(0, 255, 255));
+        window.draw(accent2);
+    }
+    
+    // Port name (title)
+    Text nameText(port->name, font, 16);
+    nameText.setPosition(tooltipX + 10, tooltipY + 10);
+    nameText.setFillColor(Color(0, 255, 255));
+    nameText.setStyle(Text::Bold);
+    window.draw(nameText);
+    
+    // Separator line
+    RectangleShape separator(Vector2f(tooltipWidth - 20, 2));
+    separator.setPosition(tooltipX + 10, tooltipY + 35);
+    separator.setFillColor(Color(0, 200, 255, 150));
+    window.draw(separator);
+    
+    // Port charges
+    Text chargesLabel("Port Charges:", font, 12);
+    chargesLabel.setPosition(tooltipX + 10, tooltipY + 45);
+    chargesLabel.setFillColor(Color(150, 200, 255));
+    window.draw(chargesLabel);
+    
+    Text chargesValue("$" + to_string((int)port->portCharges), font, 12);
+    chargesValue.setPosition(tooltipX + 150, tooltipY + 45);
+    chargesValue.setFillColor(Color(255, 215, 0));
+    chargesValue.setStyle(Text::Bold);
+    window.draw(chargesValue);
+    
+    // Coordinates
+    Text coordLabel("Coordinates:", font, 12);
+    coordLabel.setPosition(tooltipX + 10, tooltipY + 65);
+    coordLabel.setFillColor(Color(150, 200, 255));
+    window.draw(coordLabel);
+    
+    char coordStr[50];
+    sprintf(coordStr, "%.2f°, %.2f°", port->latitude, port->longitude);
+    Text coordValue(coordStr, font, 11);
+    coordValue.setPosition(tooltipX + 10, tooltipY + 82);
+    coordValue.setFillColor(Color(200, 220, 255));
+    window.draw(coordValue);
+    
+    // Number of routes
+    Text routesLabel("Outbound Routes:", font, 12);
+    routesLabel.setPosition(tooltipX + 10, tooltipY + 100);
+    routesLabel.setFillColor(Color(150, 200, 255));
+    window.draw(routesLabel);
+    
+    int routeCount = 0;
+    Node<Route>* current = port->routes.head;
+    while (current != nullptr) {
+        routeCount++;
+        current = current->next;
+    }
+    
+    Text routesValue(to_string(routeCount), font, 12);
+    routesValue.setPosition(tooltipX + 150, tooltipY + 100);
+    routesValue.setFillColor(Color(0, 255, 200));
+    routesValue.setStyle(Text::Bold);
+    window.draw(routesValue);
+    
+    // Ships in queue
+    Text queueLabel("Ships Docked:", font, 12);
+    queueLabel.setPosition(tooltipX + 10, tooltipY + 120);
+    queueLabel.setFillColor(Color(150, 200, 255));
+    window.draw(queueLabel);
+    
+    // Count ships in queue manually
+    int shipCount = 0;
+    Queue<Ship> tempQueue = port->shipsQueue;
+    while (!tempQueue.isEmpty()) {
+        shipCount++;
+        tempQueue.dequeue();
+    }
+    
+    Text queueValue(to_string(shipCount), font, 12);
+    queueValue.setPosition(tooltipX + 150, tooltipY + 120);
+    queueValue.setFillColor(Color(255, 100, 100));
+    queueValue.setStyle(Text::Bold);
+    window.draw(queueValue);
+}
+
+void Graphics::drawRouteTooltip(Route& route, Vector2f mousePos, string sourceName, string destName) {
+    float tooltipWidth = 300;
+    float tooltipHeight = 180;
+    float tooltipX = mousePos.x + 15;
+    float tooltipY = mousePos.y - tooltipHeight / 2;
+    
+    // Keep tooltip on screen
+    if (tooltipX + tooltipWidth > 1590) tooltipX = mousePos.x - tooltipWidth - 15;
+    if (tooltipY < 10) tooltipY = 10;
+    if (tooltipY + tooltipHeight > 890) tooltipY = 890 - tooltipHeight;
+    
+    // Tooltip background with glow
+    RectangleShape tooltipGlow(Vector2f(tooltipWidth + 6, tooltipHeight + 6));
+    tooltipGlow.setPosition(tooltipX - 3, tooltipY - 3);
+    tooltipGlow.setFillColor(Color(255, 200, 0, 50));
+    window.draw(tooltipGlow);
+    
+    RectangleShape tooltipBg(Vector2f(tooltipWidth, tooltipHeight));
+    tooltipBg.setPosition(tooltipX, tooltipY);
+    tooltipBg.setFillColor(Color(5, 15, 30, 250));
+    tooltipBg.setOutlineColor(Color(255, 215, 0, 255));
+    tooltipBg.setOutlineThickness(2);
+    window.draw(tooltipBg);
+    
+    // Corner accents
+    float cornerSize = 12;
+    for (int corner = 0; corner < 4; corner++) {
+        float cx = (corner % 2 == 0) ? tooltipX : tooltipX + tooltipWidth;
+        float cy = (corner < 2) ? tooltipY : tooltipY + tooltipHeight;
+        
+        RectangleShape accent1(Vector2f(cornerSize, 2));
+        accent1.setPosition(cx + (corner % 2 == 0 ? 0 : -cornerSize), cy);
+        accent1.setFillColor(Color(255, 215, 0));
+        window.draw(accent1);
+        
+        RectangleShape accent2(Vector2f(2, cornerSize));
+        accent2.setPosition(cx, cy + (corner < 2 ? 0 : -cornerSize));
+        accent2.setFillColor(Color(255, 215, 0));
+        window.draw(accent2);
+    }
+    
+    // Title
+    Text title("ROUTE DETAILS", font, 14);
+    title.setPosition(tooltipX + 10, tooltipY + 8);
+    title.setFillColor(Color(255, 215, 0));
+    title.setStyle(Text::Bold);
+    window.draw(title);
+    
+    // Separator
+    RectangleShape separator(Vector2f(tooltipWidth - 20, 2));
+    separator.setPosition(tooltipX + 10, tooltipY + 30);
+    separator.setFillColor(Color(255, 200, 0, 150));
+    window.draw(separator);
+    
+    // Source -> Destination
+    Text sourceLabel("From:", font, 11);
+    sourceLabel.setPosition(tooltipX + 10, tooltipY + 40);
+    sourceLabel.setFillColor(Color(150, 200, 255));
+    window.draw(sourceLabel);
+    
+    Text sourceValue(sourceName, font, 11);
+    sourceValue.setPosition(tooltipX + 80, tooltipY + 40);
+    sourceValue.setFillColor(Color(255, 255, 255));
+    sourceValue.setStyle(Text::Bold);
+    window.draw(sourceValue);
+    
+    Text destLabel("To:", font, 11);
+    destLabel.setPosition(tooltipX + 10, tooltipY + 58);
+    destLabel.setFillColor(Color(150, 200, 255));
+    window.draw(destLabel);
+    
+    Text destValue(destName, font, 11);
+    destValue.setPosition(tooltipX + 80, tooltipY + 58);
+    destValue.setFillColor(Color(255, 255, 255));
+    destValue.setStyle(Text::Bold);
+    window.draw(destValue);
+    
+    // Company
+    Text companyLabel("Company:", font, 11);
+    companyLabel.setPosition(tooltipX + 10, tooltipY + 80);
+    companyLabel.setFillColor(Color(150, 200, 255));
+    window.draw(companyLabel);
+    
+    Text companyValue(route.company, font, 11);
+    companyValue.setPosition(tooltipX + 80, tooltipY + 80);
+    companyValue.setFillColor(getCompanyColor(route.company));
+    companyValue.setStyle(Text::Bold);
+    window.draw(companyValue);
+    
+    // Cost
+    Text costLabel("Voyage Cost:", font, 11);
+    costLabel.setPosition(tooltipX + 10, tooltipY + 100);
+    costLabel.setFillColor(Color(150, 200, 255));
+    window.draw(costLabel);
+    
+    Text costValue("$" + to_string((int)route.voyageCost), font, 11);
+    costValue.setPosition(tooltipX + 110, tooltipY + 100);
+    costValue.setFillColor(Color(0, 255, 100));
+    costValue.setStyle(Text::Bold);
+    window.draw(costValue);
+    
+    // Departure time
+    Text depLabel("Departure:", font, 11);
+    depLabel.setPosition(tooltipX + 10, tooltipY + 120);
+    depLabel.setFillColor(Color(150, 200, 255));
+    window.draw(depLabel);
+    
+    char depStr[50];
+    sprintf(depStr, "%02d:%02d %02d/%02d/%04d", 
+            route.departureTime.hour, route.departureTime.minute,
+            route.departureTime.day, route.departureTime.month, route.departureTime.year);
+    Text depValue(depStr, font, 10);
+    depValue.setPosition(tooltipX + 110, tooltipY + 120);
+    depValue.setFillColor(Color(200, 220, 255));
+    window.draw(depValue);
+    
+    // Arrival time
+    Text arrLabel("Arrival:", font, 11);
+    arrLabel.setPosition(tooltipX + 10, tooltipY + 140);
+    arrLabel.setFillColor(Color(150, 200, 255));
+    window.draw(arrLabel);
+    
+    char arrStr[50];
+    sprintf(arrStr, "%02d:%02d %02d/%02d/%04d", 
+            route.arrivalTime.hour, route.arrivalTime.minute,
+            route.arrivalTime.day, route.arrivalTime.month, route.arrivalTime.year);
+    Text arrValue(arrStr, font, 10);
+    arrValue.setPosition(tooltipX + 110, tooltipY + 140);
+    arrValue.setFillColor(Color(200, 220, 255));
+    window.draw(arrValue);
+    
+    // Duration (calculate manually)
+    double durationHours = 0;
+    
+    // Calculate hours difference
+    int totalMinutesArr = route.arrivalTime.year * 525600 + route.arrivalTime.month * 43800 + 
+                          route.arrivalTime.day * 1440 + route.arrivalTime.hour * 60 + route.arrivalTime.minute;
+    int totalMinutesDep = route.departureTime.year * 525600 + route.departureTime.month * 43800 + 
+                          route.departureTime.day * 1440 + route.departureTime.hour * 60 + route.departureTime.minute;
+    durationHours = (totalMinutesArr - totalMinutesDep) / 60.0;
+    
+    Text durationLabel("Duration:", font, 11);
+    durationLabel.setPosition(tooltipX + 10, tooltipY + 160);
+    durationLabel.setFillColor(Color(150, 200, 255));
+    window.draw(durationLabel);
+    
+    char durStr[30];
+    sprintf(durStr, "%.1f hours", durationHours);
+    Text durationValue(durStr, font, 11);
+    durationValue.setPosition(tooltipX + 110, tooltipY + 160);
+    durationValue.setFillColor(Color(255, 200, 100));
+    durationValue.setStyle(Text::Bold);
+    window.draw(durationValue);
 }
 

@@ -9,11 +9,13 @@
 using namespace std;
 using namespace sf;
 
-enum AppState { MAIN_MENU, SELECTING_PATHFINDING_ALGO, SELECTING_ALGO_OPTIONS, INPUTTING_AVOID_PORTS, INPUTTING_MAX_VOYAGE_TIME, IDLE, INPUTTING_SOURCE, INPUTTING_DEST, INPUTTING_DEPARTURE_DATE, SELECTING_MODE, SELECTING_COMPANY, SELECTING_ALGORITHM, READY_TO_COMPUTE, COMPUTING, SHOWING_PATH, VIEWING_INTERACTIVE_CHAIN };
+enum AppState { MAIN_MENU, SELECTING_BOOKING_ALGO, GRAPH_ANALYSIS, SELECTING_PATHFINDING_ALGO, SELECTING_ALGO_OPTIONS, INPUTTING_AVOID_PORTS, INPUTTING_MAX_VOYAGE_TIME, IDLE, INPUTTING_SOURCE, INPUTTING_DEST, INPUTTING_DEPARTURE_DATE, SELECTING_MODE, SELECTING_COMPANY, SELECTING_ALGORITHM, READY_TO_COMPUTE, COMPUTING, SHOWING_PATH, VIEWING_INTERACTIVE_CHAIN };
 
 string stateToString(AppState state) {
     switch(state) {
         case MAIN_MENU: return "MAIN MENU";
+        case SELECTING_BOOKING_ALGO: return "SELECT BOOKING ALGORITHM";
+        case GRAPH_ANALYSIS: return "GRAPH ANALYSIS";
         case SELECTING_PATHFINDING_ALGO: return "SELECT PATHFINDING ALGORITHM";
         case SELECTING_ALGO_OPTIONS: return "SELECT ALGORITHM OPTIONS";
         case INPUTTING_AVOID_PORTS: return "ENTER AVOID PORTS";
@@ -58,6 +60,41 @@ Vector<string> findSimilarPorts(Graph& graph, const string& input) {
     }
     
     return matches;
+}
+
+// Helper function to get continent for a port
+string getPortContinent(const string& portName) {
+    // Europe
+    if (portName == "London" || portName == "Hamburg" || portName == "Rotterdam" || 
+        portName == "Marseille" || portName == "Genoa" || portName == "Antwerp" ||
+        portName == "Helsinki" || portName == "Oslo" || portName == "Stockholm" ||
+        portName == "Copenhagen" || portName == "Dublin" || portName == "Lisbon" ||
+        portName == "Istanbul" || portName == "Athens" || portName == "Alexandria")
+        return "Europe";
+    
+    // Asia
+    if (portName == "HongKong" || portName == "Shanghai" || portName == "Singapore" ||
+        portName == "Tokyo" || portName == "Osaka" || portName == "Busan" ||
+        portName == "Dubai" || portName == "AbuDhabi" || portName == "Doha" ||
+        portName == "Jeddah" || portName == "Mumbai" || portName == "Colombo" ||
+        portName == "Karachi" || portName == "Jakarta" || portName == "Manila" ||
+        portName == "Chittagong")
+        return "Asia";
+    
+    // Africa
+    if (portName == "CapeTown" || portName == "Durban" || portName == "PortLouis")
+        return "Africa";
+    
+    // North America
+    if (portName == "NewYork" || portName == "LosAngeles" || portName == "Vancouver" ||
+        portName == "Montreal")
+        return "North America";
+    
+    // Oceania
+    if (portName == "Sydney" || portName == "Melbourne")
+        return "Oceania";
+    
+    return "Unknown";
 }
 
 // Helper function to sanitize input (remove leading/trailing spaces, limit length)
@@ -271,6 +308,46 @@ int main() {
     int selectedAlgoIndex = -1;  // 0 = Dijkstra, 1 = A*, 2 = DFS
     string selectedAlgorithmName = "Dijkstra";
 
+    // Booking routes selection (for algorithm page)
+    Vector<string> bookingAlgorithms;
+    bookingAlgorithms.push_back("Dijkstra");
+    bookingAlgorithms.push_back("A* (A-Star)");
+    int hoveredBookingAlgo = -1;
+
+    // Graph Analysis filters
+    bool showFilterPanel = false;
+    Vector<string> continentFilters;
+    continentFilters.push_back("Europe");
+    continentFilters.push_back("Asia");
+    continentFilters.push_back("Africa");
+    continentFilters.push_back("North America");
+    continentFilters.push_back("South America");
+    continentFilters.push_back("Oceania");
+    
+    Vector<bool> continentFilterActive;
+    for (int i = 0; i < 6; i++) continentFilterActive.push_back(false);
+    
+    Vector<string> companyFilters;
+    companyFilters.push_back("MSC");
+    companyFilters.push_back("MaerskLine");
+    companyFilters.push_back("CMA_CGM");
+    companyFilters.push_back("COSCO");
+    companyFilters.push_back("HapagLloyd");
+    companyFilters.push_back("Evergreen");
+    companyFilters.push_back("ONE");
+    companyFilters.push_back("YangMing");
+    companyFilters.push_back("PIL");
+    companyFilters.push_back("ZIM");
+    
+    Vector<bool> companyFilterActive;
+    for (int i = 0; i < 10; i++) companyFilterActive.push_back(false);
+    
+    // Graph Analysis hover state
+    int hoveredPortIndex = -1;
+    int hoveredRouteSourceIdx = -1;
+    int hoveredRouteDestIdx = -1;
+    Route hoveredRoute;
+
     AppState currentState = MAIN_MENU;
     int selectedPort = -1;
     int sourcePort = -1;
@@ -394,6 +471,34 @@ int main() {
                         case MAIN_MENU:
                             // Only close app from main menu
                             window.close();
+                            handled = true;
+                            break;
+                            
+                        case SELECTING_BOOKING_ALGO:
+                            // Go back to main menu
+                            currentState = MAIN_MENU;
+                            stateString = stateToString(currentState);
+                            cout << "\n>>> Returned to Main Menu" << endl;
+                            handled = true;
+                            break;
+                            
+                        case GRAPH_ANALYSIS:
+                            // Close filter panel if open, otherwise go back to main menu
+                            if (showFilterPanel) {
+                                showFilterPanel = false;
+                                cout << "\n>>> Filter Panel Closed" << endl;
+                            } else {
+                                currentState = MAIN_MENU;
+                                stateString = stateToString(currentState);
+                                // Reset filters
+                                for (int i = 0; i < continentFilterActive.getSize(); i++) {
+                                    continentFilterActive[i] = false;
+                                }
+                                for (int i = 0; i < companyFilterActive.getSize(); i++) {
+                                    companyFilterActive[i] = false;
+                                }
+                                cout << "\n>>> Exited Graph Analysis - Returned to Main Menu" << endl;
+                            }
                             handled = true;
                             break;
                             
@@ -1340,11 +1445,11 @@ int main() {
                 if (event.mouseButton.button == Mouse::Left) {
                     // Handle main menu clicks
                     if (currentState == MAIN_MENU) {
-                        // Check if clicking on algorithm buttons (Dijkstra, A*, DFS)
-                        float buttonY = 350;
-                        float buttonWidth = 400;
-                        float buttonHeight = 60;
-                        float spacing = 20;
+                        // Check if clicking on menu buttons (BOOK ROUTES, GRAPH ANALYSIS, DFS)
+                        float buttonY = 340;
+                        float buttonWidth = 420;
+                        float buttonHeight = 65;
+                        float spacing = 18;
                         float buttonX = 800 - buttonWidth / 2;
                         
                         for (int i = 0; i < 3; i++) {
@@ -1353,19 +1458,122 @@ int main() {
                             
                             if (bounds.contains(event.mouseButton.x, event.mouseButton.y)) {
                                 clickSound.play();
-                                selectedAlgoIndex = i;
-                                if (i == 0) selectedAlgorithmName = "Dijkstra";
-                                else if (i == 1) selectedAlgorithmName = "A* (A-Star)";
-                                else selectedAlgorithmName = "DFS (All Paths)";
                                 
+                                if (i == 0) {
+                                    // BOOK ROUTES - navigate to booking algorithm selection page
+                                    currentState = SELECTING_BOOKING_ALGO;
+                                    stateString = stateToString(currentState);
+                                    cout << "\n>>> Navigating to Booking Algorithm Selection" << endl;
+                                } else if (i == 1) {
+                                    // GRAPH ANALYSIS - navigate to graph analysis view
+                                    currentState = GRAPH_ANALYSIS;
+                                    stateString = stateToString(currentState);
+                                    showFilterPanel = false;
+                                    cout << "\n>>> Entering Graph Analysis Mode" << endl;
+                                } else if (i == 2) {
+                                    // DFS - directly select
+                                    selectedAlgoIndex = 2;
+                                    selectedAlgorithmName = "DFS (All Paths)";
+                                    currentState = IDLE;
+                                    stateString = stateToString(currentState);
+                                    instructions.setString("Type SOURCE port name, then press ENTER | [T]Toggle Routes [F5]Reset [ESC]Exit");
+                                    textBounds = instructions.getLocalBounds();
+                                    instructions.setOrigin(textBounds.width / 2.0f, 0);
+                                    cout << "\n>>> Selected Algorithm: " << selectedAlgorithmName << endl;
+                                    cout << "\n>>> Type source port name" << endl;
+                                }
+                                break;
+                            }
+                        }
+                    }
+                    
+                    // Handle booking algorithm selection page clicks
+                    if (currentState == SELECTING_BOOKING_ALGO) {
+                        // Use actual menu bounds from drawAlgorithmMenu
+                        float startY = 380;
+                        float boxWidth = 450;
+                        float boxHeight = 60;
+                        float spacing = 15;
+                        float startX = 800 - boxWidth / 2;
+                        
+                        for (int i = 0; i < 2; i++) {  // Only 2 options: Dijkstra, A*
+                            float y = startY + i * (boxHeight + spacing);
+                            FloatRect bounds(startX, y, boxWidth, boxHeight);
+                            
+                            if (bounds.contains(event.mouseButton.x, event.mouseButton.y)) {
+                                clickSound.play();
+                                selectedAlgoIndex = i;  // 0 = Dijkstra, 1 = A*
+                                selectedAlgorithmName = bookingAlgorithms[i];
                                 currentState = IDLE;
                                 stateString = stateToString(currentState);
                                 instructions.setString("Type SOURCE port name, then press ENTER | [T]Toggle Routes [F5]Reset [ESC]Exit");
+                                instructions.setFillColor(Color(0, 255, 255));
                                 textBounds = instructions.getLocalBounds();
                                 instructions.setOrigin(textBounds.width / 2.0f, 0);
                                 cout << "\n>>> Selected Algorithm: " << selectedAlgorithmName << endl;
                                 cout << ">>> Type source port name" << endl;
                                 break;
+                            }
+                        }
+                    }
+                    
+                    // Handle graph analysis mode clicks
+                    if (currentState == GRAPH_ANALYSIS) {
+                        // Check filter button (bottom left)
+                        FloatRect filterButtonBounds(20, 820, 120, 40);
+                        if (filterButtonBounds.contains(event.mouseButton.x, event.mouseButton.y)) {
+                            clickSound.play();
+                            showFilterPanel = !showFilterPanel;
+                            cout << (showFilterPanel ? "\n>>> Filter Panel Opened" : "\n>>> Filter Panel Closed") << endl;
+                        }
+                        
+                        // Handle filter panel clicks if open (centered layout)
+                        if (showFilterPanel) {
+                            float panelWidth = 600;
+                            float filterHeight = 35;
+                            float filterSpacing = 8;
+                            float sectionSpacing = 40;
+                            
+                            float panelHeight = 120 + continentFilters.getSize() * (filterHeight + filterSpacing) + 
+                                              sectionSpacing + companyFilters.getSize() * (filterHeight + filterSpacing);
+                            
+                            float panelX = (1600 - panelWidth) / 2;
+                            float panelY = (900 - panelHeight) / 2;
+                            float contentY = panelY + 80;
+                            
+                            float col1X = panelX + 30;
+                            float col2X = panelX + 320;
+                            int filtersPerCol = (continentFilters.getSize() + 1) / 2;
+                            
+                            // Continent filters (2 columns)
+                            for (int i = 0; i < continentFilters.getSize(); i++) {
+                                float x = (i < filtersPerCol) ? col1X : col2X;
+                                float y = contentY + 35 + (i % filtersPerCol) * (filterHeight + filterSpacing);
+                                FloatRect bounds(x, y, 250, filterHeight);
+                                
+                                if (bounds.contains(event.mouseButton.x, event.mouseButton.y)) {
+                                    clickSound.play();
+                                    continentFilterActive[i] = !continentFilterActive[i];
+                                    cout << "\n>>> " << continentFilters[i] << " filter: " 
+                                         << (continentFilterActive[i] ? "ON" : "OFF") << endl;
+                                }
+                            }
+                            
+                            // Company filters (2 columns)
+                            float companyY = contentY + 35 + filtersPerCol * (filterHeight + filterSpacing) + sectionSpacing;
+                            int companyPerCol = (companyFilters.getSize() + 1) / 2;
+                            
+                            for (int i = 0; i < companyFilters.getSize(); i++) {
+                                float x = (i < companyPerCol) ? col1X : col2X;
+                                float y = companyY + 35 + (i % companyPerCol) * (filterHeight + filterSpacing);
+                                FloatRect bounds(x, y, 250, filterHeight);
+                                
+                                if (bounds.contains(event.mouseButton.x, event.mouseButton.y)) {
+                                    clickSound.play();
+                                    companyFilterActive[i] = !companyFilterActive[i];
+                                    cout << "\n>>> " << companyFilters[i] << " filter: " 
+                                         << (companyFilterActive[i] ? "ON" : "OFF") << endl;
+                                }
                             }
                         }
                     }
@@ -1658,6 +1866,11 @@ int main() {
         // Draw HUD panel
         renderer.drawHUD(sourcePort, destPort, pathResult, oceanGraph, stateString, selectedAlgorithmName);
         
+        // Draw traversal HUD when ship is animating
+        if (currentState == SHOWING_PATH) {
+            renderer.drawTraversalHUD(oceanGraph, pathResult);
+        }
+        
         // Draw computed path if found
         if (pathResult.pathFound) {
             // If in interactive chain view, ONLY draw the modified path from the chain
@@ -1721,6 +1934,111 @@ int main() {
         // Draw main menu if in MAIN_MENU state
         if (currentState == MAIN_MENU) {
             renderer.drawMainMenu(false);
+        }
+        // Draw graph analysis view
+        else if (currentState == GRAPH_ANALYSIS) {
+            // Hover detection for ports and routes
+            Vector2i mousePos = Mouse::getPosition(window);
+            hoveredPortIndex = -1;
+            hoveredRouteSourceIdx = -1;
+            hoveredRouteDestIdx = -1;
+            
+            // Check port hover (only if filter panel is not open or mouse is not over it)
+            bool mouseOverPanel = false;
+            if (showFilterPanel) {
+                float panelWidth = 600;
+                float filterHeight = 35;
+                float filterSpacing = 8;
+                float sectionSpacing = 40;
+                
+                float panelHeight = 120 + continentFilters.getSize() * (filterHeight + filterSpacing) + 
+                                  sectionSpacing + companyFilters.getSize() * (filterHeight + filterSpacing);
+                
+                float panelX = (1600 - panelWidth) / 2;
+                float panelY = (900 - panelHeight) / 2;
+                
+                FloatRect panelBounds(panelX, panelY, panelWidth, panelHeight);
+                mouseOverPanel = panelBounds.contains(mousePos.x, mousePos.y);
+            }
+            
+            // Also check if mouse is over filter button
+            FloatRect filterButtonBounds(20, 820, 120, 40);
+            bool mouseOverButton = filterButtonBounds.contains(mousePos.x, mousePos.y);
+            
+            if (!mouseOverPanel && !mouseOverButton) {
+                // Check ports
+                for (int i = 0; i < oceanGraph.ports.getSize(); i++) {
+                    Vector2f portPos = renderer.portScreenPositions[i];
+                    float dist = sqrt((mousePos.x - portPos.x) * (mousePos.x - portPos.x) + 
+                                     (mousePos.y - portPos.y) * (mousePos.y - portPos.y));
+                    if (dist < 15) {  // 15 pixel hover radius
+                        hoveredPortIndex = i;
+                        break;
+                    }
+                }
+                
+                // Check routes (if not hovering a port)
+                if (hoveredPortIndex == -1) {
+                    for (int i = 0; i < oceanGraph.ports.getSize(); i++) {
+                        Port* source = oceanGraph.ports[i];
+                        Node<Route>* current = source->routes.head;
+                        
+                        while (current != nullptr) {
+                            Route& route = current->data;
+                            int destIdx = oceanGraph.findPortIndex(route.destinationPortName);
+                            
+                            if (destIdx != -1) {
+                                Vector2f sourcePos = renderer.portScreenPositions[i];
+                                Vector2f destPos = renderer.portScreenPositions[destIdx];
+                                
+                                // Calculate distance from mouse to line segment
+                                Vector2f mouseVec(mousePos.x, mousePos.y);
+                                float dist = renderer.distToSegment(mouseVec, sourcePos, destPos);
+                                
+                                if (dist < 8) {  // 8 pixel hover threshold for lines
+                                    hoveredRouteSourceIdx = i;
+                                    hoveredRouteDestIdx = destIdx;
+                                    hoveredRoute = route;
+                                    break;
+                                }
+                            }
+                            
+                            current = current->next;
+                        }
+                        
+                        if (hoveredRouteSourceIdx != -1) break;
+                    }
+                }
+            }
+            
+            renderer.drawGraphAnalysis(oceanGraph, showFilterPanel, 
+                                      continentFilters, continentFilterActive,
+                                      companyFilters, companyFilterActive,
+                                      hoveredPortIndex, hoveredRouteSourceIdx, hoveredRouteDestIdx,
+                                      hoveredRoute);
+        }
+        // Draw booking algorithm selection page
+        else if (currentState == SELECTING_BOOKING_ALGO) {
+            // Update hover detection
+            Vector2i mousePos = Mouse::getPosition(window);
+            hoveredBookingAlgo = -1;
+            
+            float startY = 380;
+            float boxWidth = 450;
+            float boxHeight = 60;
+            float spacing = 15;
+            float startX = 800 - boxWidth / 2;
+            
+            for (int i = 0; i < 2; i++) {
+                float y = startY + i * (boxHeight + spacing);
+                FloatRect bounds(startX, y, boxWidth, boxHeight);
+                if (bounds.contains(mousePos.x, mousePos.y)) {
+                    hoveredBookingAlgo = i;
+                    break;
+                }
+            }
+            
+            renderer.drawAlgorithmMenu(bookingAlgorithms, hoveredBookingAlgo);
         }
         // Draw algorithm options menu ONLY when in options state
         else if (currentState == SELECTING_ALGO_OPTIONS || 
