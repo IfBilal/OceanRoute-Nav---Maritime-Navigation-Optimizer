@@ -25,8 +25,7 @@ test_pathfinding.cpp
 *.pdf
 docs/**/*.pdf
 
-# Markdown files (do not push)
-*.md
+# Markdown files (do not push - except README.md)
 COMPREHENSIVE_ANALYSIS_REPORT.md
 FINAL_DELIVERY_SUMMARY.md
 TESTING_README.md
